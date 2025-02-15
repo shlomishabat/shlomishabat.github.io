@@ -61,7 +61,7 @@
 
     <script>
         async function fetchGitHubRepos() {
-            const response = await fetch('https://api.github.com/users/yourusername/repos');
+            const response = await fetch('https://api.github.com/users/shlomishabat/repos');
             const repos = await response.json();
             const container = document.getElementById('github-projects');
             container.innerHTML = repos.filter(repo => repo.name !== 'shlomishabat.github.io').map(repo => `
