@@ -156,6 +156,9 @@
   }
   .article-card h3 { font-size: 16px; font-weight: 650; margin-bottom: 5px; }
   .article-card p { color: var(--text-dim); font-size: 14px; }
+  a.article-link { text-decoration: none; color: inherit; transition: all .2s; }
+  a.article-link:hover { border-color: var(--accent); background: var(--card-hover); }
+  a.article-link .badge { color: var(--accent); border-color: var(--accent); }
   .badge {
     font-family: var(--mono); font-size: 11.5px; white-space: nowrap;
     color: var(--accent2); border: 1px solid var(--accent2); opacity: .8;
@@ -309,18 +312,18 @@
 
 <section id="articles" class="reveal">
   <h2 class="section-title">Articles</h2>
-  <p class="section-sub">First posts are in the works.</p>
-  <div class="article-card">
+  <p class="section-sub">Research write-ups and field notes.</p>
+  <a class="article-card article-link" href="articles/seeing-agents.html">
     <div>
-      <h3>Understanding Cyber Threats</h3>
-      <p>Exploring the landscape of modern cyber threats and how to mitigate them.</p>
+      <h3>Seeing Agents: Fingerprinting an AI Agent from the Defender's Side</h3>
+      <p>Before asking whether an agent is malicious, you have to see it. A local lab that measures the fingerprint an LLM agent leaves in the browser, and the one signal it can't fake.</p>
     </div>
-    <span class="badge">coming soon</span>
-  </div>
+    <span class="badge">read</span>
+  </a>
   <div class="article-card">
     <div>
-      <h3>Guide to AWS Security Best Practices</h3>
-      <p>A practical guide to securing cloud environments in AWS.</p>
+      <h3>I Left a Fake AI Server on the Open Internet for Four Days</h3>
+      <p>A decoy LLM backend, 75 unique visitors, and the first signs of automated MCP scanning in the wild.</p>
     </div>
     <span class="badge">coming soon</span>
   </div>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seeing Agents: Fingerprinting an AI Agent from the Defender's Side | Shlomi Shabat</title>
+<meta name="description" content="Before asking whether an AI agent is malicious, you have to answer a simpler question: can you tell it's there at all? A small local lab for fingerprinting agent-driven browser sessions.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0e14'/><path d='M25 32 L45 50 L25 68' stroke='%234fd1c5' stroke-width='9' fill='none' stroke-linecap='round' stroke-linejoin='round'/><rect x='52' y='61' width='26' height='9' rx='4' fill='%234fd1c5'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-soft: #0f1420;
+    --card: #131a29;
+    --border: #1f2a40;
+    --text: #e6ebf4;
+    --text-dim: #93a0b8;
+    --accent: #4fd1c5;
+    --accent-soft: rgba(79, 209, 197, 0.12);
+    --accent2: #7aa2f7;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--sans); background: var(--bg); color: var(--text);
+    line-height: 1.75; -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent-soft); color: var(--accent); }
+
+  nav {
+    position: sticky; top: 0; z-index: 50; backdrop-filter: blur(12px);
+    background: rgba(10, 14, 20, 0.82); border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    max-width: 1080px; margin: 0 auto; padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-logo { font-family: var(--mono); font-weight: 600; font-size: 15px; color: var(--accent); text-decoration: none; }
+  .nav-inner a.back { color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500; }
+  .nav-inner a.back:hover { color: var(--accent); }
+
+  article { max-width: 720px; margin: 0 auto; padding: 64px 24px 96px; }
+  .meta { font-family: var(--mono); font-size: 13px; color: var(--text-dim); margin-bottom: 18px; }
+  .meta .tag-inline { color: var(--accent); }
+  h1 { font-size: clamp(28px, 4.5vw, 40px); font-weight: 800; line-height: 1.18; letter-spacing: -0.02em; margin-bottom: 22px; }
+  .standfirst { font-size: 18px; color: var(--text-dim); margin-bottom: 40px; }
+  h2 { font-size: 22px; font-weight: 700; margin: 44px 0 14px; letter-spacing: -0.01em; }
+  h3 { font-size: 17px; font-weight: 650; margin: 30px 0 10px; }
+  p { margin-bottom: 18px; }
+  p, li { font-size: 16px; }
+  strong { color: var(--text); font-weight: 650; }
+  a { color: var(--accent2); }
+  a:hover { color: var(--accent); }
+  ul { margin: 0 0 18px 22px; }
+  li { margin-bottom: 8px; }
+
+  blockquote {
+    border-left: 3px solid var(--accent); background: var(--bg-soft);
+    padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 18px;
+    color: var(--text); font-size: 16.5px;
+  }
+
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--card); padding: 2px 6px; border-radius: 5px; color: var(--accent); }
+  pre {
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 20px; overflow-x: auto; margin-bottom: 18px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: var(--text); font-size: 13px; }
+
+  .table-wrap { overflow-x: auto; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: var(--bg-soft); }
+  tr:last-child td { border-bottom: none; }
+  td { color: var(--text-dim); }
+  td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+
+  .repo-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; margin: 36px 0 0; display: flex; justify-content: space-between;
+    align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .repo-box p { margin: 0; color: var(--text-dim); font-size: 14.5px; }
+  .repo-box a.btn {
+    display: inline-block; background: var(--accent); color: #06281f; font-weight: 600;
+    font-size: 14px; padding: 10px 18px; border-radius: 8px; text-decoration: none; white-space: nowrap;
+  }
+  footer { border-top: 1px solid var(--border); }
+  .footer-inner { max-width: 720px; margin: 0 auto; padding: 28px 24px; color: var(--text-dim); font-size: 13.5px; }
+  .footer-inner a { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="../index.html">~/shlomi</a>
+    <a class="back" href="../index.html#articles">Back to home</a>
+  </div>
+</nav>
+
+<article>
+  <div class="meta">July 2026 · <span class="tag-inline">AI security</span> · <span class="tag-inline">detection engineering</span></div>
+  <h1>Seeing Agents: Fingerprinting an AI Agent from the Defender's Side</h1>
+  <p class="standfirst">
+    Everyone in AI security is looking at the payload. I wanted to look at the carrier.
+  </p>
+
+  <p>
+    The field's attention is almost entirely on prompt injection, jailbreaks and tool
+    abuse: the malicious <em>content</em> an agent might process. But there is a question
+    that comes before all of those:
+  </p>
+
+  <blockquote>
+    Before you ask "is this agent malicious?", you have to answer "is there an agent
+    here at all, and what is it doing?"
+  </blockquote>
+
+  <p>
+    That first question is not an alignment problem. It is a detection and fingerprinting
+    problem, and it is the same problem bot-detection research has worked on for a decade.
+    The twist is that a modern LLM agent is neither a human nor a classic script. It sits
+    in an interesting gap between the two, and that gap is measurable.
+  </p>
+
+  <p>
+    So I built a small, reproducible lab. It drives a browser through a task the way an
+    AI agent would, records what the page can observe, and prints a side-by-side
+    comparison against a human doing the same task. Everything runs locally: the lab
+    serves its own instrumented page on <code>localhost</code> and never touches a
+    third-party site.
+  </p>
+
+  <h2>The signal taxonomy</h2>
+
+  <p>
+    Five families of signals separate the three actors involved: a human, a classic bot,
+    and an LLM agent.
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Dimension</th><th>Human</th><th>AI agent</th><th>Observed via</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Automation artifacts</td>
+          <td><code>navigator.webdriver = false</code>, real plugin and MIME lists</td>
+          <td><code>webdriver = true</code>, empty plugins, headless user agent</td>
+          <td>client JS</td>
+        </tr>
+        <tr>
+          <td>Input humanity</td>
+          <td>hundreds of mouse moves, jitter, off-center clicks, per-keystroke timing</td>
+          <td>near-zero mouse moves, dead-center clicks, values set programmatically</td>
+          <td>client JS</td>
+        </tr>
+        <tr>
+          <td>Behavioral cadence</td>
+          <td>reads before acting; noisy, variable timing</td>
+          <td>acts on load; near-zero, flat inter-event timing</td>
+          <td>client JS + timing</td>
+        </tr>
+        <tr>
+          <td>Semantic navigation</td>
+          <td>scans, hovers, backtracks</td>
+          <td>goes straight to the right element by role or text, reasoning over the DOM</td>
+          <td>DOM interaction log</td>
+        </tr>
+        <tr>
+          <td>Network signature</td>
+          <td>browser-consistent header set and order</td>
+          <td>automation UA, header-order and <code>sec-ch-*</code> anomalies</td>
+          <td>proxy / server headers</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>What an agent session actually looks like</h2>
+
+  <p>Measured output from an agent run of the lab, with the reason each number matters:</p>
+
+  <pre><code>signal                  agent      why it matters
+navigator.webdriver     True       true == automation flag on
+navigator.plugins       0          0 is typical of headless/automation
+mouse move events       2          humans emit hundreds; agents near-zero
+keydown events          29         value set with 0 keys = programmatic fill
+median key gap (ms)     0.0        humans ~80-200ms; agents ~0-5ms
+key gap variance        0.5        human timing is noisy; machine is flat
+click offset (px)       1.2        humans miss center; agents hit dead-center
+time to 1st action      50 ms      humans read first; agents act on load</code></pre>
+
+  <p>
+    Two mouse movements where a human leaves hundreds. Keystrokes with a median spacing
+    of 0.0 milliseconds and near-zero variance. Clicks landing one pixel from dead
+    center, where a human always misses. A first action 50 milliseconds after page load,
+    with no reading and no hesitation.
+  </p>
+
+  <p>
+    None of these are boundaries. Every one of them is spoofable, and that is the same
+    arms race bot detection has been running for years.
+  </p>
+
+  <h2>The signal that interests me: thinking without looking</h2>
+
+  <p>
+    A classic bot is fast and blind: it fires actions with no perceptual behavior at all.
+    A human is slow and perceptual: mouse drift, scrolling, reading pauses, hesitation.
+  </p>
+
+  <p>
+    An LLM agent is a novel third profile. It <strong>pauses to think</strong>, because
+    inference latency sits between observe, decide and act. But during that pause it
+    produces <strong>none of the perceptual micro-behavior</strong> a human emits while
+    deciding. Deliberation without perception.
+  </p>
+
+  <p>
+    That gap, not any single flag, is the part worth researching. A user-agent string
+    can be patched and mouse jitter can be synthesized, but an agent cannot fake
+    human-like perception during its thinking pauses without ceasing to work the way an
+    agent works. The durable signals are the ones intrinsic to being an agent.
+  </p>
+
+  <h2>Honest limitations</h2>
+
+  <ul>
+    <li><strong>Every individual signal here is evadable.</strong> Automation flags can be patched, timing can be humanized. No single tell is a boundary.</li>
+    <li>Client-side signals assume you can instrument the page. In real deployments the network and proxy-layer signals matter more, because they survive when the endpoint is not yours.</li>
+    <li>A real fingerprint is a fused score over many weak signals, continuously recalibrated. This lab shows the raw signals; productionizing them is the detection-engineering work.</li>
+  </ul>
+
+  <h2>Why this matters now</h2>
+
+  <p>
+    Enterprise agent-security platforms all start from the same place: discovery and
+    runtime observability. You cannot govern, monitor or enforce policy on an agent you
+    cannot see. Ten years of bot-detection research already knows how to read the
+    fingerprints; the defender's first job in agent security is the same as it was for
+    bots. Know that the non-human actor is there, and know what it is doing.
+  </p>
+
+  <p>Before we can govern agents, we have to see them.</p>
+
+  <div class="repo-box">
+    <p>The full lab, instrumented page and analysis included, is a single Python file you can run locally.</p>
+    <a class="btn" href="https://github.com/shlomishabat/seeing-agents" target="_blank" rel="noopener">Code on GitHub</a>
+  </div>
+</article>
+
+<footer>
+  <div class="footer-inner">
+    <a href="../index.html">Shlomi Shabat</a> · Cyber Security Researcher · Tel Aviv
+  </div>
+</footer>
+
+</body>
+</html>
