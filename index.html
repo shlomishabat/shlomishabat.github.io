@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shlomi Shabat — Security Researcher & Software Engineer</title>
-<meta name="description" content="Shlomi Shabat — cybersecurity researcher and software engineer. Browser privacy research, fingerprinting detection, and security tooling.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+<title>Shlomi Shabat | Cyber Security Researcher</title>
+<meta name="description" content="Shlomi Shabat, cyber security researcher based in Tel Aviv. Web tracking research, reverse engineering and security tooling.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0e14'/><path d='M25 32 L45 50 L25 68' stroke='%234fd1c5' stroke-width='9' fill='none' stroke-linecap='round' stroke-linejoin='round'/><rect x='52' y='61' width='26' height='9' rx='4' fill='%234fd1c5'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -124,8 +124,7 @@
     transition: all .2s; text-decoration: none; color: inherit;
   }
   .card:hover { background: var(--card-hover); border-color: var(--accent); transform: translateY(-3px); }
-  .card-top { display: flex; justify-content: space-between; align-items: center; }
-  .card-icon { font-size: 22px; }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
   .card h3 { font-size: 17px; font-weight: 650; }
   .card p { color: var(--text-dim); font-size: 14px; flex-grow: 1; }
   .card .ext { color: var(--text-dim); transition: color .2s; }
@@ -146,7 +145,6 @@
   .research-item {
     background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px; padding: 22px;
   }
-  .research-item .emoji { font-size: 24px; margin-bottom: 10px; display: block; }
   .research-item h3 { font-size: 15.5px; font-weight: 650; margin-bottom: 8px; }
   .research-item p { color: var(--text-dim); font-size: 13.5px; }
 
@@ -201,11 +199,12 @@
 
 <header class="hero">
   <div>
-    <div class="hero-kicker">// security researcher &amp; software engineer</div>
-    <h1>Hi, I'm <span class="accent">Shlomi Shabat</span>.<br>I hunt trackers &amp; build tools.</h1>
+    <div class="hero-kicker">// cyber security researcher</div>
+    <h1>Hi, I'm <span class="accent">Shlomi Shabat</span>.<br>I research how the web tracks people.</h1>
     <p class="lede">
-      I research how the web watches you — browser fingerprinting, tracking tech, and
-      large-scale privacy analysis — and I build the automation and tooling to do it at scale.
+      Six years in security research, analysis and development. I reverse engineer web
+      applications, hunt live tracking violations, and build the automation that finds
+      them at scale.
     </p>
     <div class="hero-cta">
       <a class="btn btn-primary" href="#projects">View my work</a>
@@ -216,9 +215,9 @@
     <div class="terminal-bar"><span></span><span></span><span></span></div>
     <div class="terminal-body">
       <div><span class="prompt">$</span> <span class="cmd">whoami</span></div>
-      <div class="out">shlomi — security researcher</div>
+      <div class="out">shlomi · cyber security researcher</div>
       <div><span class="prompt">$</span> <span class="cmd">cat focus.txt</span></div>
-      <div class="out">web privacy · fingerprinting · browser internals<br>automation at scale · AI-assisted tooling</div>
+      <div class="out">web tracking · fingerprinting · reverse engineering<br>autonomous agents · MCP · local SLMs</div>
       <div><span class="prompt">$</span> <span class="cursor"></span></div>
     </div>
   </div>
@@ -227,58 +226,55 @@
 <section id="about" class="reveal">
   <h2 class="section-title">About</h2>
   <p class="section-sub" style="margin-bottom:0; max-width:720px;">
-    I'm a cybersecurity researcher and software engineer specializing in web privacy.
-    My day-to-day is reverse-engineering how sites and third parties track users —
-    fingerprinting scripts, tracking pixels, session recorders — and building the
-    crawlers, browser instrumentation, and data pipelines that surface that evidence
-    at internet scale. I like tools that are small, sharp, and honest about what they do.
+    I'm a cyber security researcher based in Tel Aviv, currently at Darrow AI and
+    previously at PerimeterX (now Human Security) and K2view. My work sits where
+    research meets engineering: reverse engineering complex web applications, building
+    detection logic for tracking and compliance violations, and turning one-off findings
+    into production pipelines.
   </p>
+  <div class="tags" style="margin-top:22px; max-width:720px;">
+    <span class="tag">Autonomous Agents</span><span class="tag">MCP</span><span class="tag">SLMs</span><span class="tag">JavaScript</span><span class="tag">Python</span><span class="tag">SQL</span><span class="tag">ElasticSearch</span><span class="tag">Grafana</span><span class="tag">Linux</span><span class="tag">Docker</span>
+  </div>
 </section>
 
 <section id="projects" class="reveal">
   <h2 class="section-title">Projects</h2>
-  <p class="section-sub">A curated selection of things I've built — from browser instrumentation to systems programming.</p>
+  <p class="section-sub">Tools I've built, from browser instrumentation to systems programming.</p>
   <div class="grid">
 
     <a class="card featured" href="https://github.com/shlomishabat/fpMonD" target="_blank" rel="noopener">
-      <div class="card-top"><span class="card-icon">🕵️</span><span class="ext">↗</span></div>
-      <h3>fpMonD — Browser Fingerprinting Monitor</h3>
-      <p>Chrome extension that instruments canvas, WebGL, audio, navigator, and font APIs before page scripts run, then parses stack traces to attribute every fingerprinting call to the exact script responsible — inline, eval, or third-party — with a confidence level per attribution.</p>
+      <div class="card-top"><h3>fpMonD: Browser Fingerprinting Monitor</h3><span class="ext">↗</span></div>
+      <p>Chrome extension that hooks canvas, WebGL, audio, navigator and font APIs before page scripts run, then parses stack traces to attribute every fingerprinting call to the script responsible, whether inline, eval or third-party, with a confidence level per attribution.</p>
       <div class="tags"><span class="tag">TypeScript</span><span class="tag">Chrome Extension</span><span class="tag">Privacy</span><span class="tag">Browser Internals</span></div>
     </a>
 
     <a class="card" href="https://github.com/shlomishabat/c89-assembler" target="_blank" rel="noopener">
-      <div class="card-top"><span class="card-icon">⚙️</span><span class="ext">↗</span></div>
-      <h3>C89 Assembler</h3>
-      <p>A multi-pass assembler for a simplified assembly language, written in strict ANSI C: macro preprocessing, symbol-table management, and 24-bit machine-code generation.</p>
+      <div class="card-top"><h3>C89 Assembler</h3><span class="ext">↗</span></div>
+      <p>Multi-pass assembler for a simplified assembly language, written in strict ANSI C. Macro preprocessing, symbol tables and 24-bit machine code generation.</p>
       <div class="tags"><span class="tag">C</span><span class="tag">Systems</span><span class="tag">Compilers</span></div>
     </a>
 
     <a class="card" href="https://github.com/shlomishabat/tama-checker" target="_blank" rel="noopener">
-      <div class="card-top"><span class="card-icon">🗺️</span><span class="ext">↗</span></div>
-      <h3>TAMA Checker</h3>
-      <p>Geospatial pipeline that pulls building-permit data from Tel Aviv's municipal GIS (Shapefile/KML/Excel) and alerts on new construction projects near registered addresses.</p>
+      <div class="card-top"><h3>TAMA Checker</h3><span class="ext">↗</span></div>
+      <p>Pulls building permit data from Tel Aviv's municipal GIS in Shapefile, KML and Excel formats, and alerts on new construction projects near registered addresses.</p>
       <div class="tags"><span class="tag">Node.js</span><span class="tag">Python</span><span class="tag">GIS</span></div>
     </a>
 
     <a class="card" href="https://github.com/shlomishabat/arc-shortcuts" target="_blank" rel="noopener">
-      <div class="card-top"><span class="card-icon">⌨️</span><span class="ext">↗</span></div>
-      <h3>Arc Shortcuts</h3>
-      <p>Arc-style previous-tab toggle for Chrome — one keystroke to jump between your two most recent tabs, across windows, surviving service-worker restarts.</p>
+      <div class="card-top"><h3>Arc Shortcuts</h3><span class="ext">↗</span></div>
+      <p>Previous-tab toggle for Chrome in the style of Arc. One keystroke jumps between your two most recent tabs, across windows, and it survives service worker restarts.</p>
       <div class="tags"><span class="tag">JavaScript</span><span class="tag">Chrome Extension</span><span class="tag">Productivity</span></div>
     </a>
 
     <a class="card" href="https://github.com/shlomishabat/script-inject-ext" target="_blank" rel="noopener">
-      <div class="card-top"><span class="card-icon">💉</span><span class="ext">↗</span></div>
-      <h3>Script Injector</h3>
-      <p>Chrome extension for saving and injecting custom JavaScript into any page — a lightweight workbench for DOM experiments and page analysis.</p>
+      <div class="card-top"><h3>Script Injector</h3><span class="ext">↗</span></div>
+      <p>Chrome extension for saving and injecting custom JavaScript into any page. A lightweight workbench for DOM experiments and page analysis.</p>
       <div class="tags"><span class="tag">JavaScript</span><span class="tag">Chrome Extension</span><span class="tag">Tooling</span></div>
     </a>
 
     <a class="card" href="https://github.com/shlomishabat/Openop-Gcal" target="_blank" rel="noopener">
-      <div class="card-top"><span class="card-icon">📅</span><span class="ext">↗</span></div>
-      <h3>Openop-Gcal</h3>
-      <p>Chrome extension that syncs the Open University course schedule straight into Google Calendar.</p>
+      <div class="card-top"><h3>Openop-Gcal</h3><span class="ext">↗</span></div>
+      <p>Chrome extension that syncs the Open University course schedule into Google Calendar.</p>
       <div class="tags"><span class="tag">JavaScript</span><span class="tag">Chrome Extension</span><span class="tag">Automation</span></div>
     </a>
 
@@ -290,34 +286,30 @@
 
 <section id="research" class="reveal">
   <h2 class="section-title">Research &amp; Expertise</h2>
-  <p class="section-sub">Areas I work in professionally — building privacy-research infrastructure and security tooling at scale.</p>
+  <p class="section-sub">The areas I work in professionally.</p>
   <div class="research-grid">
     <div class="research-item">
-      <span class="emoji">🔍</span>
-      <h3>Web Privacy Research</h3>
-      <p>Detecting browser fingerprinting, tracking pixels, and session-recording tech across large site populations; turning raw browser telemetry into evidence.</p>
+      <h3>Web Intelligence Research</h3>
+      <p>Detection logic that identifies live compliance breaches and tracking violations at web scale, taken from proof of concept to production.</p>
     </div>
     <div class="research-item">
-      <span class="emoji">🤖</span>
-      <h3>AI-Assisted Security Tooling</h3>
-      <p>LLM-powered detection and classification of web assets, and MCP servers that let AI models run iterative research over search clusters.</p>
+      <h3>Reverse Engineering</h3>
+      <p>Deep dives into complex web applications to map advanced bot detection and uncover novel evasion vectors.</p>
     </div>
     <div class="research-item">
-      <span class="emoji">🌐</span>
-      <h3>Traffic Interception &amp; Analysis</h3>
-      <p>Burp Suite extensions, HAR processing pipelines, and mobile SSL-unpinning workflows for inspecting what apps and pages really send.</p>
+      <h3>Autonomous Agents &amp; Local Models</h3>
+      <p>Agent architectures, MCP tooling and on-device SLMs, including internal evaluation workflows with no external AI vendor dependencies.</p>
     </div>
     <div class="research-item">
-      <span class="emoji">🏗️</span>
-      <h3>Research Infrastructure</h3>
-      <p>Playwright/Puppeteer crawler fleets, Airflow orchestration, and OpenSearch/Elasticsearch pipelines that keep large-scale scanning honest and repeatable.</p>
+      <h3>Detection Engineering</h3>
+      <p>High-throughput Python and JavaScript engines for data analytics and threat hunting across massive web data sources, backed by ElasticSearch and Grafana.</p>
     </div>
   </div>
 </section>
 
 <section id="articles" class="reveal">
   <h2 class="section-title">Articles</h2>
-  <p class="section-sub">Writing in progress — these are on the bench.</p>
+  <p class="section-sub">First posts are in the works.</p>
   <div class="article-card">
     <div>
       <h3>Understanding Cyber Threats</h3>
@@ -336,7 +328,7 @@
 
 <footer>
   <div class="footer-inner">
-    <p>© 2026 Shlomi Shabat · Built with plain HTML — no frameworks harmed.</p>
+    <p>© 2026 Shlomi Shabat · Tel Aviv</p>
     <div class="social">
       <a href="https://github.com/shlomishabat" target="_blank" rel="noopener" aria-label="GitHub">
         <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
