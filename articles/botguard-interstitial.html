@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google's BotGuard Interstitial Challenge Breakdown | Shlomi Shabat</title>
+<meta name="description" content="Reverse-engineering Google's BotGuard interstitial: a JavaScript proof-of-work challenge that turns out to be a liveness / timing / behaviour gate, not the device fingerprint you'd expect.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0e14'/><path d='M25 32 L45 50 L25 68' stroke='%234fd1c5' stroke-width='9' fill='none' stroke-linecap='round' stroke-linejoin='round'/><rect x='52' y='61' width='26' height='9' rx='4' fill='%234fd1c5'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-soft: #0f1420;
+    --card: #131a29;
+    --border: #1f2a40;
+    --text: #e6ebf4;
+    --text-dim: #93a0b8;
+    --accent: #4fd1c5;
+    --accent-soft: rgba(79, 209, 197, 0.12);
+    --accent2: #7aa2f7;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--sans); background: var(--bg); color: var(--text);
+    line-height: 1.75; -webkit-font-smoothing: antialiased;
+    font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0;
+  }
+  ::selection { background: var(--accent-soft); color: var(--accent); }
+
+  nav {
+    position: sticky; top: 0; z-index: 50; backdrop-filter: blur(12px);
+    background: rgba(10, 14, 20, 0.82); border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    max-width: 1080px; margin: 0 auto; padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-logo { font-family: var(--mono); font-weight: 600; font-size: 15px; color: var(--accent); text-decoration: none; }
+  .nav-inner a.back { color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500; }
+  .nav-inner a.back:hover { color: var(--accent); }
+
+  article { max-width: 760px; margin: 0 auto; padding: 64px 24px 96px; }
+  .meta { font-family: var(--mono); font-size: 13px; color: var(--text-dim); margin-bottom: 18px; }
+  .meta .tag-inline { color: var(--accent); }
+  h1 { font-size: clamp(28px, 4.5vw, 40px); font-weight: 800; line-height: 1.18; letter-spacing: -0.02em; margin-bottom: 22px; }
+  .standfirst { font-size: 18px; color: var(--text-dim); font-style: italic; margin-bottom: 26px; }
+  h2 {
+    font-size: 24px; font-weight: 700; margin: 52px 0 6px; letter-spacing: -0.01em;
+    color: var(--accent); scroll-margin-top: 80px;
+  }
+  h2::before { content: ''; display: block; height: 1px; background: var(--border); margin-bottom: 20px; }
+  .section-lead { font-style: italic; color: var(--text-dim); font-size: 16px; margin-bottom: 20px; }
+  p { margin-bottom: 18px; }
+  p, li { font-size: 16px; }
+  strong { color: var(--text); font-weight: 700; }
+  .ul { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--text-dim); }
+  a { color: var(--accent2); }
+  a:hover { color: var(--accent); }
+  ul.body-list { margin: 0 0 18px 22px; }
+  ul.body-list li { margin-bottom: 12px; }
+
+  code { font-family: var(--mono); font-size: 0.86em; background: var(--card); padding: 2px 6px; border-radius: 5px; color: var(--accent); word-break: break-word; }
+  pre {
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; overflow-x: auto; margin-bottom: 22px; line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; color: var(--text); font-size: 13px; white-space: pre; word-break: normal; }
+
+  figure { margin: 6px 0 24px; }
+  figure a { display: block; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #000; line-height: 0; }
+  figure a:hover { border-color: var(--accent); }
+  figure img { width: 100%; height: auto; display: block; }
+
+  .table-wrap { overflow-x: auto; margin-bottom: 22px; border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 14.5px; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: var(--bg-soft); }
+  tr:last-child td { border-bottom: none; }
+  td { color: var(--text-dim); }
+  td:first-child { color: var(--text); }
+
+  .loop-line { font-family: var(--mono); font-size: 14px; color: var(--text); background: var(--bg-soft); border-left: 3px solid var(--accent); padding: 14px 18px; border-radius: 0 8px 8px 0; margin-bottom: 22px; overflow-x: auto; }
+
+  .doc-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 34px; }
+  .doc-actions a {
+    display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+    font-size: 13.5px; font-weight: 600; padding: 9px 16px; border-radius: 8px;
+    border: 1px solid var(--border); color: var(--text);
+  }
+  .doc-actions a:hover { border-color: var(--accent); color: var(--accent); }
+  .doc-actions a.primary { background: var(--accent); color: #06281f; border-color: var(--accent); }
+  .doc-actions a.primary:hover { color: #06281f; opacity: .9; }
+
+  .repo-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; margin: 44px 0 0; display: flex; justify-content: space-between;
+    align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .repo-box p { margin: 0; color: var(--text-dim); font-size: 14.5px; }
+  .repo-box a.btn {
+    display: inline-block; background: var(--accent); color: #06281f; font-weight: 600;
+    font-size: 14px; padding: 10px 18px; border-radius: 8px; text-decoration: none; white-space: nowrap;
+  }
+  footer { border-top: 1px solid var(--border); }
+  .footer-inner { max-width: 760px; margin: 0 auto; padding: 28px 24px; color: var(--text-dim); font-size: 13.5px; }
+  .footer-inner a { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="../index.html">~/shlomi</a>
+    <a class="back" href="../index.html#articles">Back to home</a>
+  </div>
+</nav>
+
+<article>
+  <div class="meta">August 2026 · <span class="tag-inline">reverse engineering</span> · <span class="tag-inline">bot detection</span></div>
+  <h1>Google's BotGuard Interstitial Challenge Breakdown</h1>
+  <p class="standfirst">
+    Bottom line: the interstitial is Google BotGuard, a JavaScript proof-of-work challenge
+    and, once reverse-engineered, it turns out to be a liveness / timing / behaviour gate, not
+    the device fingerprint you'd expect.
+  </p>
+
+  <div class="doc-actions">
+    <a class="primary" href="BotGuard-Interstitial-Report-ShlomiShabat.pdf" target="_blank" rel="noopener">Original PDF ↓</a>
+    <a href="https://github.com/shlomishabat/BotGuard-RE" target="_blank" rel="noopener">Tools &amp; captures on GitHub ↗</a>
+  </div>
+
+  <h2 id="triggers">What triggers the interstitial and what doesn't?</h2>
+  <p>
+    Google decides whether to show the challenge before any JavaScript runs, straight
+    from the request. To find what actually triggers it, I kept the IP the same (a clean
+    residential one) and changed one thing at a time - every request to <code>/search?q=anything</code>,
+    no cookies, checking whether the response is the challenge (it carries sg_ss / enablejs)
+    or the real results.
+  </p>
+  <p>
+    First I faked a real browser at the wire level - a proper Chrome TLS fingerprint that
+    matches the User-Agent. Still got the challenge. Then I tried it with a plain NID cookie.
+    Still the challenge. So neither a browser-like fingerprint nor a plain cookie is enough on
+    its own.
+  </p>
+
+  <pre><code>python3 -c "from curl_cffi import requests as r;
+b=r.get('https://www.google.com/search?q=anything',impersonate='chrome').text;
+print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pre>
+
+  <figure><a href="botguard-img/bg-01.png" target="_blank" rel="noopener"><img src="botguard-img/bg-01.png" alt="Terminal running the curl_cffi one-liner, printing CHALLENGE."></a></figure>
+
+  <pre><code>python3 -c "from curl_cffi import requests as r;
+b=r.get('https://www.google.com/search?q=anything',impersonate='chrome',
+headers={'Cookie':'NID=&lt;paste-your-NID&gt;'}).text;
+print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pre>
+
+  <figure><a href="botguard-img/bg-02.png" target="_blank" rel="noopener"><img src="botguard-img/bg-02.png" alt="Terminal running the same request with a plain NID cookie, still printing CHALLENGE."></a></figure>
+
+  <p>
+    What actually clears it is a validated session - the NID you get after passing BotGuard,
+    not just any NID. Until you have that, any request that looks like a browser but isn't
+    trusted gets the interstitial. Three outcomes:
+  </p>
+  <p>Trusted -&gt; results, browser-like-but-untrusted -&gt; interstitial, obvious bot -&gt; reCAPTCHA.</p>
+
+  <h2 id="loads">How the challenge loads</h2>
+  <p class="section-lead">
+    Before any code, here's what actually happens when you hit the page with no cookies -
+    the request, the challenge, and the token exchange.
+  </p>
+  <p>
+    First I took the response of <code>google.com/anything</code> from a clean profile (and no cookies)
+    to investigate where the interstitial challenge is being loaded. The first HTML response
+    is not the query response, we can see that a request after the &ldquo;sei&rdquo; param is being
+    added and only then we&rsquo;re getting the query results HTML.
+  </p>
+
+  <figure><a href="botguard-img/bg-03.png" target="_blank" rel="noopener"><img src="botguard-img/bg-03.png" alt="DevTools Network panel showing the first search Request URL."></a></figure>
+  <figure><a href="botguard-img/bg-04.png" target="_blank" rel="noopener"><img src="botguard-img/bg-04.png" alt="DevTools Network panel showing the follow-up Request URL with the sei param added."></a></figure>
+
+  <p>
+    The first cookie-less request to /search returns the interstitial and sets only
+    NID/AEC/__Secure-STRP - <strong>never SG_SS</strong>. First proof that SG_SS is written by the
+    challenge on the client, not by the server.
+  </p>
+
+  <figure><a href="botguard-img/bg-05.png" target="_blank" rel="noopener"><img src="botguard-img/bg-05.png" alt="Response headers showing Set-Cookie for NID/AEC/__Secure-STRP but no SG_SS."></a></figure>
+
+  <p>
+    After the challenge runs, the follow-up <code>/search?&hellip;&amp;sei=&hellip;</code> request carries SG_SS - a
+    base64url token prefixed with *. This is the VM's collected-and-encrypted output.
+  </p>
+
+  <figure><a href="botguard-img/bg-06.png" target="_blank" rel="noopener"><img src="botguard-img/bg-06.png" alt="DevTools Cookies panel showing the SG_SS token carried on the request."></a></figure>
+
+  <p>
+    Google validates the token, deletes it (SG_SS=0, expiry 1990) and issues/refreshes the
+    pass cookie NID. From here the browser is trusted and skips the interstitial.
+  </p>
+
+  <figure><a href="botguard-img/bg-07.png" target="_blank" rel="noopener"><img src="botguard-img/bg-07.png" alt="Response headers deleting SG_SS (Expires 1990) and setting a fresh NID."></a></figure>
+
+  <p>
+    Inside the first HTML we can observe several interesting things. It actually carries <strong>two</strong>
+    paths at once, and the client picks one by whether it runs JS or not.
+  </p>
+  <p><span class="ul"><code>&lt;noscript&gt;</code> tag:</span></p>
+  <p>
+    If JavaScript is disabled, a <code>&lt;style&gt;</code> hides the page and a
+    <code>&lt;meta http-equiv="refresh"&gt;</code> redirects to <code>/httpservice/retry/enablejs?sei=....</code>
+    This is the no-JS branch of the fork: a browser with JS ignores it; a client with no JS
+    engine is bounced to the enablejs gate. It is inert whenever scripting is on.
+  </p>
+
+  <figure><a href="botguard-img/bg-08.png" target="_blank" rel="noopener"><img src="botguard-img/bg-08.png" alt="The noscript branch in the first HTML: a style block and a meta refresh redirect to the enablejs gate."></a></figure>
+
+  <h2 id="vm">Getting to the VM</h2>
+  <p class="section-lead">
+    Now into the JavaScript that runs the challenge - how the VM is delivered, and
+    confirming it's the same engine inline and from /js/bg.
+  </p>
+  <p><span class="ul"><code>&lt;script&gt;</code> 2 tag:</span></p>
+  <p>Script 2 does two things:</p>
+  <ol class="body-list">
+    <li>Creates a script - the page's CSP blocks plain eval, so it wraps the VM source
+      with the policy's <code>createScript(...)</code> into a Trusted Script the CSP will accept.</li>
+    <li>Run it - It hands that script to indirect eval - which executes it in the global scope.
+      That single line is the whole activation: build a trusted script, then eval it.</li>
+  </ol>
+
+  <figure><a href="botguard-img/bg-09.png" target="_blank" rel="noopener"><img src="botguard-img/bg-09.png" alt="The activation line: an indirect eval wrapping the VM source through createScript."></a></figure>
+
+  <p>
+    The argument to eval is the VM itself, assembled at runtime: a random block of blank
+    lines (<code>Math.random()*7824</code> - per-load padding), a decoy source map, and one string that
+    is the whole program. Joining that string back and running it through js-beautify gives
+    the readable VM source.
+  </p>
+
+  <figure><a href="botguard-img/bg-10.png" target="_blank" rel="noopener"><img src="botguard-img/bg-10.png" alt="The joined VM source after js-beautify, starting with the Google LLC copyright banner."></a></figure>
+
+  <p>From here i&rsquo;ve found the path js/bg in the code:</p>
+
+  <figure><a href="botguard-img/bg-11.png" target="_blank" rel="noopener"><img src="botguard-img/bg-11.png" alt="The VM source referencing https://www.google.com/js/bg/ and a fromCharCode literal."></a></figure>
+
+  <p>
+    So i&rsquo;ve tried to find a request that is being loaded since clearly the URL is built
+    dynamically by the code.
+  </p>
+  <p>Then I've found a request whose structure looks exactly like our interpreter.</p>
+
+  <figure><a href="botguard-img/bg-12.png" target="_blank" rel="noopener"><img src="botguard-img/bg-12.png" alt="Network panel and Response tab showing the bg script served from /js/bg/ with the same interpreter structure."></a></figure>
+
+  <p>
+    So again I took the code, and compared it to the one we got inline.
+    This time i&rsquo;ve used the debugger to extract the script being injected into the eval:
+  </p>
+  <p>
+    First obstacle - the decoy blanks DevTools. One toggle fixes it: uncheck "Enable
+    JavaScript source maps".
+  </p>
+
+  <figure><a href="botguard-img/bg-13.png" target="_blank" rel="noopener"><img src="botguard-img/bg-13.png" alt="Sources tree showing the js/bg script file after disabling source maps."></a></figure>
+
+  <p>Copy the value of Y:</p>
+
+  <figure><a href="botguard-img/bg-14.png" target="_blank" rel="noopener"><img src="botguard-img/bg-14.png" alt="Debugger paused on the eval, with Y holding the padded VM source in the Scope pane."></a></figure>
+
+  <p>So the two are the same script - same functionality, just different obfuscation layers.</p>
+  <p>
+    Obfuscation can rename and reshuffle everything, but it can't change the values the
+    code actually needs to run - the URL it calls, the hidden strings, the sentinel tokens.
+    Those come out identical in both files, and that's what I matched:
+  </p>
+
+  <figure><a href="botguard-img/bg-15.png" target="_blank" rel="noopener"><img src="botguard-img/bg-15.png" alt="Side-by-side diff of bg.pretty.js and tag2_vm_source.pretty.js showing matching structure."></a></figure>
+
+  <p>
+    Same endpoint literal, same template-tag call, and the same 16 character codes
+    decoding to the same hidden token integCheckBypass. The only differences are the
+    renamed helper (Ej / Ay) and a numeric argument. A different program would not
+    independently invent this exact URL and this exact char-code-encoded string.
+  </p>
+
+  <figure><a href="botguard-img/bg-16.png" target="_blank" rel="noopener"><img src="botguard-img/bg-16.png" alt="Side-by-side of the two files: TM = Ej([...js/bg/...]) versus Ib = Ay(14, [...js/bg/...])."></a></figure>
+
+  <p><span class="ul">Identical internal sentinel:</span></p>
+
+  <figure><a href="botguard-img/bg-17.png" target="_blank" rel="noopener"><img src="botguard-img/bg-17.png" alt="Both files containing the identical :TQR:TQR: sentinel string."></a></figure>
+
+  <p><span class="ul">Identical Trusted-Types enums and tag whitelist:</span></p>
+
+  <figure><a href="botguard-img/bg-18.png" target="_blank" rel="noopener"><img src="botguard-img/bg-18.png" alt="Both files listing identical Trusted-Types enums including FORMATTED_HTML_CONTENT."></a></figure>
+
+  <h2 id="static">Static - why the checks can't be read from the code</h2>
+  <p class="section-lead">
+    With the VM in hand, the obvious move is to read the checks straight out of it. It doesn't
+    work, and here's exactly why.
+  </p>
+  <p>Now i started to look for any fingerprint marks in the scripts so i&rsquo;ve run the following:</p>
+
+  <pre><code>printf 'property-name string literals found in bg.pretty.js: '; grep -oE "[\"'](webdriver|userAgent|appVersion|platform|vendor|language|languages|plugins|mimeTypes|hardwareConcurrency|deviceMemory|maxTouchPoints|connection|userAgentData|chrome|toDataURL|getImageData|getParameter|getExtension|performance|hidden|visibilityState|getTimezoneOffset|screen|width|height|colorDepth|devicePixelRatio|localStorage|indexedDB|cookie)[\"']" new_namual/script/js/bg.pretty.js | wc -l | tr -d ' '</code></pre>
+
+  <p>Results:</p>
+
+  <figure><a href="botguard-img/bg-19.png" target="_blank" rel="noopener"><img src="botguard-img/bg-19.png" alt="Terminal output: property-name string literals found in bg.pretty.js: 0."></a></figure>
+
+  <p>
+    It didn&rsquo;t yield anything. Therefore I continued to the next step which is to search where
+    and how the code engine builds the string for collecting fingerprints on run time.
+    I located the construction routine, then traced its inputs backwards to establish where
+    the data actually comes from. These are two instructions of the VM's bytecode
+    interpreter, registered with <code>d(&lt;opcode&gt;, &lt;handler&gt;)</code>.
+  </p>
+  <p>
+    Both build a string one character at a time by XOR-ing a byte array with the constant
+    121, then use that string as a property key:
+  </p>
+  <p>
+    <span class="ul">Opcode 92 (208-210)</span>: <code>z += String.fromCharCode(Z[u] ^ 121)</code>, then z in Q - tests whether
+    a property named z exists on object Q.
+  </p>
+  <p>
+    <span class="ul">Opcode 40 (211-213)</span>: the same decode into Q, then Z[Q] - reads the property named Q
+    from object Z.
+  </p>
+  <p>
+    The key (121) is a fixed constant, but the two inputs (the object and the byte array) are
+    not literals here. They are obtained through <code>x(Y, &hellip;)</code> and <code>w(Y)</code>, so to know which
+    property is touched we must know what those calls return.
+  </p>
+
+  <figure><a href="botguard-img/bg-20.png" target="_blank" rel="noopener"><img src="botguard-img/bg-20.png" alt="Bytecode interpreter lines 208-213 defining opcodes 92 and 40 with the XOR-121 decode."></a></figure>
+
+  <p>
+    <span class="ul">Lines 440-445</span>: the operand's value is read from a register. <code>x(l, G)</code> returns <code>l.g[G]</code>, the
+    value held in register G. This is how every opcode obtains its operand values.
+  </p>
+  <p>
+    The consequence is that the byte array feeding the decoder above is a register value,
+    i.e. runtime state, not something present in the source.
+  </p>
+
+  <figure><a href="botguard-img/bg-21.png" target="_blank" rel="noopener"><img src="botguard-img/bg-21.png" alt="Lines 440-445: x = function(l, G) returning l.g[G], the register read."></a></figure>
+
+  <p>
+    <span class="ul">Lines 66-70</span>: decrypting the bytecode. "w" reads the next unit from the bytecode stream.
+    It takes the read cursor from register 203, computes the current 8-byte block, and
+    whenever it enters a new block it regenerates the keystream by running the cipher (Eh)
+    on that block, keyed by register 4 - the per-load key.
+  </p>
+  <p>
+    It then returns <code>byte ^ l.mU[&hellip;]</code>. Every operand the interpreter consumes including the
+    byte arrays that become property names, is therefore a decrypted value, produced at
+    runtime with a per-load key.
+  </p>
+
+  <figure><a href="botguard-img/bg-22.png" target="_blank" rel="noopener"><img src="botguard-img/bg-22.png" alt="Lines 66-70: w = function decrypting the next bytecode unit with the per-load keystream."></a></figure>
+
+  <p>
+    <span class="ul">Lines 35-39</span>: the block cipher that produces the keystream Eh is the primitive &ldquo;w&rdquo; calls to
+    decrypt.
+  </p>
+  <p>
+    It is an ARX block cipher (add / rotate / XOR): 15 rounds of 8- and 3-bit rotations,
+    additions, and XORs against a round constant derived from the key plus 3766, returning
+    8 output bytes. Its key material comes from the bytecode header (registers seeded per
+    load), so the same ciphertext decrypts differently on every response.
+  </p>
+  <p>
+    This is why the encrypted program (p = 'srgC8z&hellip;' in the page) is unreadable without
+    running the cipher with that load's key.
+  </p>
+
+  <figure><a href="botguard-img/bg-23.png" target="_blank" rel="noopener"><img src="botguard-img/bg-23.png" alt="Lines 35-39: Eh = function, the ARX block cipher producing the keystream."></a></figure>
+
+  <p>
+    The bytecode is the other place a signal list could hide, so I tried to decrypt it. The
+    mechanism is clear: the first four bytes of the program are the cipher seed (U4), the key
+    sits in a register that starts at [0,0,0], and every byte is ciphertext XOR Eh(block, key,
+    U4). I re-implemented that in Python (analysis/decrypt_bytecode.py) .
+  </p>
+  <p>
+    It doesn't decrypt cleanly - and that's the point. The key is self-bootstrapping: it starts
+    empty and the bytecode writes the real one. And the cipher is diversified per build - the
+    round constant is 3766 in the served bg.js but 2111 in this inline copy, and the key even
+    sits in a different register. So decrypting a program means re-implementing that exact
+    build's VM.
+  </p>
+
+  <figure><a href="botguard-img/bg-24.png" target="_blank" rel="noopener"><img src="botguard-img/bg-24.png" alt="Terminal output of decrypt_bytecode.py showing the seed, per-load registers, and that it does not decrypt cleanly."></a></figure>
+
+  <p>
+    The last place a name could hide is a static encoded array in the interpreter itself. So I
+    took every numeric-array literal in the source and ran the decoder's own operation on it -
+    XOR each byte with 121. If a name were stored that way, it'd show up:
+  </p>
+
+  <pre><code>import re
+src = open("bg.pretty.js").read()
+arrays = re.findall(r'\[\s*\d{1,3}(?:\s*,\s*\d{1,3}){2,}\s*\]', src)
+for a in arrays:
+    nums = [int(x) for x in re.findall(r'\d+', a)]
+    print(a, "-&gt;", "".join(chr(n ^ 121) for n in nums))</code></pre>
+
+  <p>
+    no name is recoverable from the source. The entire file contains only 4 numeric-array
+    literals, and none decode to a property name: they are [0, 0, 0] (register initialisation)
+    and [0, 0, 1, 1, 0, 1, 1] (a flags vector).
+  </p>
+  <p>
+    As a control, applying the plain character-code decode (no XOR) to the static
+    <code>String.fromCharCode(105, 110, &hellip;)</code> literal correctly yields &ldquo;integCheckBypass&rdquo;, so the
+    method works. Plain static strings are recovered; the decoder's inputs are simply not in
+    the source.
+  </p>
+
+  <pre><code>numeric-array literals in the whole file : 4
+of those, XOR-121 -&gt; a readable name     : 0
+
+    [0, 0, 0]               -&gt; 'yyy'          (register init, not a name)
+    [0, 0, 1, 1, 0, 1, 1]   -&gt; 'yyxxyxx'      (flags, not a name)
+
+cross-check (validates the tool):
+    fromCharCode(105,110,...) with NO xor -&gt; 'integCheckBypass'     &larr; plain strings DO decode</code></pre>
+
+  <p>
+    Conclusion: Three independent lines of evidence converge: the operand values are
+    read from registers, the registers are filled by <strong>decrypting per-load bytecode</strong> with a
+    <strong>per-load key</strong>, and a full census of the file's literals recovers no names.
+  </p>
+  <p>
+    The interpreter itself is fully visible statically, but the properties it reads are materialised
+    only during execution.
+  </p>
+  <p>
+    The list of collected signals therefore cannot be enumerated by reading the code - it has
+    to be observed while the engine runs, which is the dynamic phase.
+  </p>
+
+  <h2 id="dynamic">Dynamic - watching it run</h2>
+  <p class="section-lead">
+    If you can't read the checks, you run the thing and watch. First I tried the debugger, then
+    built a proper monitor.
+  </p>
+  <p>So I went to find the decoder in the live VM:</p>
+  <p>
+    A global search for fromCharCode across every loaded script finds the XOR-121
+    decoder inside the BotGuard script served from /js/bg/ that we saw earlier.
+  </p>
+
+  <figure><a href="botguard-img/bg-25.png" target="_blank" rel="noopener"><img src="botguard-img/bg-25.png" alt="Global Search results for fromCharCode locating the XOR-121 decoder inside the /js/bg/ script."></a></figure>
+
+  <p>In the console, I set a breakpoint on the script and dived into the VM:</p>
+
+  <figure><a href="botguard-img/bg-26.png" target="_blank" rel="noopener"><img src="botguard-img/bg-26.png" alt="Sources debugger paused inside the eval'd VM script."></a></figure>
+
+  <p>On each decode site I added a no-pause conditional breakpoint:</p>
+  <p>
+    <code>(top.__bg = top.__bg || new Set()).add(name), false</code> - placed right after the decode
+    loop, where the name is complete. The trailing , false means it never stops execution; it
+    only accumulates every decoded property name into a Set we can read back.
+  </p>
+
+  <figure><a href="botguard-img/bg-27.png" target="_blank" rel="noopener"><img src="botguard-img/bg-27.png" alt="Conditional breakpoint on line 622 accumulating decoded names into top.__bg."></a></figure>
+  <figure><a href="botguard-img/bg-28.png" target="_blank" rel="noopener"><img src="botguard-img/bg-28.png" alt="A second conditional breakpoint on line 601 at the other decode site."></a></figure>
+
+  <p>
+    Reading it back, <code>[...top.__bg].sort()</code> returns a single value: <code>'\x96{0}'</code>, binary, not even
+    a property name. The breakpoint fired once before the run settled, then nothing more.
+    After a reload it returned not iterable: the Set was never created, because the
+    breakpoints were already gone.
+  </p>
+
+  <figure><a href="botguard-img/bg-29.png" target="_blank" rel="noopener"><img src="botguard-img/bg-29.png" alt="Console: [...top.__bg].sort() returns a single binary value ['\x96{0}']."></a></figure>
+
+  <p>This is where it hits a wall and can't cross by hand:</p>
+  <p>
+    The interpreter is eval'd, so every load produces a script with a fresh identity. Two
+    consequences follow. First, breakpoints set on one run do not re-arm on the next one; a
+    reload wipes them.
+  </p>
+  <p>
+    The names only exist while the engine runs, so there's no way to read them out of the
+    code, and no clean way to freeze them by hand. The right way to see them is to watch a
+    real browser run the challenge, without ever touching the VM.
+  </p>
+  <p>
+    At this point I've decided to build an extension that will hook all the fingerprinting being
+    collected by the script. This idea grew out of a tool I already had. I built and maintained -
+    <a href="https://github.com/shlomishabat/fpMonD" target="_blank" rel="noopener">fpMonD</a>, a fingerprint-monitoring Chrome extension.
+  </p>
+  <p>
+    When I pointed my extension at BotGuard, it surfaced nothing - and that failure was the
+    design brief: fpMonD hooks the instance (<code>Object.defineProperty(navigator, &hellip;)</code>) and
+    cannot follow BotGuard into fresh realms.
+  </p>
+  <p>
+    So I built a purpose-built, prototype-level, cross-realm monitor, cross-referencing
+    fpMonD's own signal list and DuckDuckGo's fingerprinting surface
+    (<a href="https://github.com/duckduckgo/content-scope-scripts" target="_blank" rel="noopener">content-scope-scripts</a> + their API-call collector <a href="https://github.com/duckduckgo/tracker-radar-collector" target="_blank" rel="noopener">tracker-radar-collector</a>).
+  </p>
+  <p>Extension folder: /fp-monitor-ext attached to the report.</p>
+  <p>Why it is built the way it is:</p>
+  <ul class="body-list">
+    <li><strong>Fidelity first</strong> - BotGuard detects observers, so I run in a real, un-automated
+      browser (an MV3 extension), not headless automation.</li>
+    <li><strong>Earliest injection, every frame</strong> - a content script at <code>run_at:document_start</code> in the
+      page's <code>world:MAIN</code>, so the wrappers are installed before the VM reads anything, in
+      every frame.</li>
+    <li><strong>Coverage by construction</strong> - not a fixed list: a catch-all wraps every accessor on
+      Navigator/Screen/Window/Document.prototype, plus the full method surface
+      (canvas + OffscreenCanvas, WebGL, audio, fonts, layout, storage, WebRTC +
+      ICE, Client-Hints, media), DOM growth, new globals, realm constructors, and
+      behavioural event listeners.</li>
+    <li><strong>Attribution</strong> - every read carries a stack; the hook is tagged
+      <code>//# sourceURL=__fp_hook__.js</code> so its own frames drop out, leaving the real caller
+      (immediate) and initiator (root). /js/bg/ anywhere in the stack = certain BotGuard;
+      eval/anon = BotGuard's VM mixed with other eval'd code.</li>
+    <li><strong>Low-observability</strong> - wrapped functions answer Function.prototype.toString with
+      the exact native string, so BotGuard's toString anti-hook probe does not see
+      them. A descriptor check could still spot a non-native getter, but I didn't run into
+      that here.</li>
+    <li><strong>Signal isolation</strong> - the site (google.com) also loads YouTube embeds and
+      ad/analytics tags that fingerprint too, running as eval'd/anonymous script, so
+      they'd land in the same eval/anon bucket as BotGuard. I block those origins with
+      a declarativeNetRequest ruleset (youtube, doubleclick, googlesyndication,
+      analytics, and a few more), so they never run. Whatever's left under eval/anon is
+      then BotGuard.</li>
+  </ul>
+
+  <p>
+    I ran the monitor on a clean profile (no cookies) and read back everything BotGuard
+    touched. Before trusting the absences, I checked coverage: the hooks are in place
+    before anything runs, in every frame - including the blank <code>&lt;iframe&gt;</code> BotGuard spins up
+    for clean natives, which turned out to be just an eval sandbox with nothing fingerprinted
+    inside. No Web Worker either. So if a signal's missing below, it genuinely isn't read it
+    with one caveat: these hooks cover accessors and methods, so a plain data-property
+    tell (e.g. window.chrome, a boolean with no getter) is the one class they can't observe.
+  </p>
+  <p>The result was clear, and honestly not what I expected:</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>FOUND</th><th>NOT FOUND</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>performance.now  (timing/PoW)</td><td>canvas / WebGL / GPU renderer</td></tr>
+        <tr><td>document.hidden  (liveness)</td><td>hardwareConcurrency</td></tr>
+        <tr><td>mouse/touch (real gesture)</td><td>navigator.plugins / fonts / audio</td></tr>
+        <tr><td>Function.toString (anti-hook)</td><td>screen dimensions</td></tr>
+        <tr><td>iframe (blank) (clean eval-box)</td><td>webdriver-style device scan</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    So what does it actually read, and why? Every signal it does read answers one
+    question: <strong>is a real human, on a real browser, present right now?</strong> None of them identify
+    the device.
+  </p>
+  <p>
+    <span class="ul">Timing</span> - performance.now (the proof-of-work clock). The VM runs a compute puzzle and
+    times it against the high-resolution clock. This both proves the work was really done on
+    the client and exposes artificial slowdown - a debugger, single-stepping, or heavy
+    instrumentation stretches the timing. Polled continuously (~1,675 reads  per run).
+  </p>
+  <p>
+    <span class="ul">Liveness</span> - document.hidden / document.readyState. Polled constantly (~1,637 reads). A
+    real user's tab is visible and focused; headless runs and background automation read
+    as hidden. Cheap to sample, hard to fake convincingly over time.
+  </p>
+  <p>
+    <span class="ul">Behaviour</span> - mousedown / mouseup / touchstart / touchend. It subscribes to the raw
+    input events. A synthetic element.click() has no matching physical press-and-release or
+    tap, a genuine gesture does. This is evidence of a human.
+  </p>
+  <p>
+    <span class="ul">Anti-tamper</span> - Function.prototype.toString. It reads the source of native functions to
+    check for the [native code] signature. A wrapped or patched native - an instrumentation
+    hook, a spoofed getter shows up right here. This is BotGuard protecting the integrity of
+    its own measurements.
+  </p>
+  <p>
+    <span class="ul">Clean realm</span> - the blank <code>&lt;iframe&gt;</code>. It inserts a blank same-origin iframe and runs VM
+    code through its pristine eval, so its logic executes on native functions that page-level
+    hooks cannot have touched. I confirmed the purpose: the access was attributed to the
+    VM's own W.eval, and nothing was fingerprinted inside.
+  </p>
+  <p>
+    So the picture is consistent: these are liveness, timing and tamper checks - about
+    whether a real human is here, not what device it is. The classic device fingerprint
+    (canvas, WebGL/GPU, cores, plugins, fonts, screen) simply isn't in BotGuard's reads on
+    the clean profile; where device identity matters, it's handled earlier at the network layer,
+    or on escalation to reCAPTCHA.
+  </p>
+  <p>
+    I ran this across four fresh interstitials, each a different per-load program, plus a trusted
+    background session, and they all match: the same lean set every time. The device
+    signals that do get read on the page (userAgent, screen, deviceMemory) come from
+    Google's own scripts, not BotGuard. A couple of BotGuard's own probes (the
+    Function.toString anti-hook check, a Protected-Audience presence test) show up in
+    some runs and not others. So the finding isn't scenario-specific or a single-run artifact.
+  </p>
+  <p>
+    Captures attached: captures/fp-interstitial.html, captures/fp-report(3-5).html,
+    captures/fp-trusted.html
+  </p>
+
+  <h2 id="closing">Closing the loop</h2>
+  <p>
+    So the last piece is what happens to everything the VM collected. From the network I
+    could already see that SG_SS is never set by the server, which means the page writes
+    it itself. To catch that write and confirm it's coming from the VM, I overrode
+    document.cookie and logged every SG_SS write together with its stack:
+  </p>
+
+  <pre><code>const d = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+Object.defineProperty(Document.prototype, 'cookie', {
+  configurable: true,
+  get() { return d.get.call(this); },
+  set(v) {
+    if (/SG_SS/i.test(v)) { console.log('[SG_SS written]', v); console.trace(); }
+    return d.set.call(this, v);
+  },
+});</code></pre>
+
+  <p>
+    It fired once, and that's all I needed. The value being written is the SG_SS token, and
+    the stack shows exactly where it's born: it's built inside the eval'd VM (VM11855),
+    handed back to the page, and the page writes it as the cookie. A moment later the tab
+    navigates to <code>/search?...&amp;sei=...</code> to send it. So SG_SS isn't anything extra, it's just the
+    VM's output turned into a cookie.
+  </p>
+
+  <figure><a href="botguard-img/bg-30.png" target="_blank" rel="noopener"><img src="botguard-img/bg-30.png" alt="Console logging the SG_SS write with a stack trace originating in the eval'd VM (VM11855)."></a></figure>
+
+  <p>
+    The token itself isn't a black box either. I decoded a few of them - base64url after the *
+    marker - and lined them up byte-for-byte. There's a clear structure: a fixed header, two
+    little-endian length fields, and a marker that are identical in every token (the envelope),
+    wrapped around a large body that changes completely each time. That body is
+    high-entropy, so it's encrypted - not a plaintext score.
+  </p>
+
+  <figure><a href="botguard-img/bg-31.png" target="_blank" rel="noopener"><img src="botguard-img/bg-31.png" alt="Terminal output of analyze_token.py: fixed header/length/marker regions and payload entropy 7.77 bits/byte."></a></figure>
+
+  <p>
+    So SG_SS is a framed, encrypted payload - the collected signals, sealed with a key that
+    lives on Google's server, not in the browser. That's why we can't read it, and why you
+    can't forge or replay one: only the server can open the envelope, check the signals and
+    the session binding (the sei), and if it's a real browser, hand back the NID. It's single-use
+    - tied to that one sei, and the server deletes it (SG_SS=0) the moment it's spent.
+  </p>
+  <p>And that's the whole loop:</p>
+  <p class="loop-line">signals -&gt; VM builds the token -&gt; page writes it as SG_SS -&gt; sent with &amp;sei= -&gt; google returns NID -&gt; browser trusted, no more interstitial.</p>
+
+  <h2 id="practice">What this means in practice.</h2>
+  <p>
+    Because the challenge is a liveness + timing + behaviour check, not a device scan,
+    getting through it is about being a real browser, not looking like one. A real Chrome with
+    a visible, focused tab, genuine timing, and untouched native functions passes; spoofing
+    canvas, the user-agent, or the GPU string does nothing here - BotGuard never reads
+    them. That kind of device fingerprinting matters elsewhere - at the network layer, or if
+    you fail and get bumped to reCAPTCHA.
+  </p>
+
+  <div class="repo-box">
+    <p>The full toolset - the deobfuscation and analysis scripts, the cross-realm monitor extension, and the captured sessions - is on GitHub, with the original report attached.</p>
+    <a class="btn" href="https://github.com/shlomishabat/BotGuard-RE" target="_blank" rel="noopener">Code on GitHub</a>
+  </div>
+</article>
+
+<footer>
+  <div class="footer-inner">
+    <a href="../index.html">Shlomi Shabat</a> · Cyber Security Researcher · Tel Aviv
+  </div>
+</footer>
+
+</body>
+</html>
