@@ -123,9 +123,11 @@
   <div class="meta">August 2026 · <span class="tag-inline">reverse engineering</span> · <span class="tag-inline">bot detection</span></div>
   <h1>Google's BotGuard Interstitial Challenge Breakdown</h1>
   <p class="standfirst">
-    Bottom line: the interstitial is Google BotGuard, a JavaScript proof-of-work challenge
-    and, once reverse-engineered, it turns out to be a liveness / timing / behaviour gate, not
-    the device fingerprint you'd expect.
+    Bottom line: the interstitial is Google BotGuard, a JavaScript proof-of-work challenge.
+    Reverse-engineered, it runs a broad environment scan and a heavy automation-tooling
+    probe on top of a liveness / timing / proof-of-work gate. It is not the GPU/canvas
+    rendering fingerprint you might expect - it profiles the browser environment and probes
+    hard for automation artifacts.
   </p>
 
   <div class="doc-actions">
@@ -526,12 +528,10 @@ cross-check (validates the tool):
       the exact native string, so BotGuard's toString anti-hook probe does not see
       them. A descriptor check could still spot a non-native getter, but I didn't run into
       that here.</li>
-    <li><strong>Signal isolation</strong> - the site (google.com) also loads YouTube embeds and
-      ad/analytics tags that fingerprint too, running as eval'd/anonymous script, so
-      they'd land in the same eval/anon bucket as BotGuard. I block those origins with
-      a declarativeNetRequest ruleset (youtube, doubleclick, googlesyndication,
-      analytics, and a few more), so they never run. Whatever's left under eval/anon is
-      then BotGuard.</li>
+    <li><strong>Signal isolation</strong> - the results page is noisy: YouTube embeds and ad/analytics
+      tags fingerprint too, in the same eval/anon bucket. Rather than block them and
+      assume whatever's left is BotGuard, I capture on the interstitial itself, where
+      BotGuard is the only thing running - so every read is unambiguously its.</li>
   </ul>
 
   <p>
@@ -539,31 +539,38 @@ cross-check (validates the tool):
     touched. Before trusting the absences, I checked coverage: the hooks are in place
     before anything runs, in every frame - including the blank <code>&lt;iframe&gt;</code> BotGuard spins up
     for clean natives, which turned out to be just an eval sandbox with nothing fingerprinted
-    inside. No Web Worker either. So if a signal's missing below, it genuinely isn't read it
-    with one caveat: these hooks cover accessors and methods, so a plain data-property
-    tell (e.g. window.chrome, a boolean with no getter) is the one class they can't observe.
+    inside. No Web Worker either. One caveat turned out to matter more than I first thought:
+    the accessor catch-all can only see properties that exist. The automation probes
+    BotGuard runs - window.domAutomationController, document.$cdc_..., window.callPhantom - are
+    undefined on a clean browser, so there is no getter to hook; the catch-all is blind to
+    them by construction. Once I added logging getters that register even an undefined read,
+    the whole probe battery appeared. (This is why my first pass reported them as "not read"
+    - they were never observable, not absent.)
   </p>
-  <p>The result was clear, and honestly not what I expected:</p>
+  <p>Here's the full set - broader than my first pass caught:</p>
 
   <div class="table-wrap">
     <table>
-      <thead>
-        <tr><th>FOUND</th><th>NOT FOUND</th></tr>
-      </thead>
       <tbody>
-        <tr><td>performance.now  (timing/PoW)</td><td>canvas / WebGL / GPU renderer</td></tr>
-        <tr><td>document.hidden  (liveness)</td><td>hardwareConcurrency</td></tr>
-        <tr><td>mouse/touch (real gesture)</td><td>navigator.plugins / fonts / audio</td></tr>
-        <tr><td>Function.toString (anti-hook)</td><td>screen dimensions</td></tr>
-        <tr><td>iframe (blank) (clean eval-box)</td><td>webdriver-style device scan</td></tr>
+        <tr><td>Liveness / proof-of-work</td><td>performance.now · document.hidden / readyState · Function.toString (anti-hook)</td></tr>
+        <tr><td>Behaviour</td><td>mousedown / mouseup · touchstart / touchend</td></tr>
+        <tr><td>Environment</td><td>screen.* · devicePixelRatio · inner / outer size · hardwareConcurrency · deviceMemory · maxTouchPoints · platform · connection · plugins / mimeTypes · languages · history.length · chrome</td></tr>
+        <tr><td>Locale / clock</td><td>getTimezoneOffset · wall clock (h / m) · timezone</td></tr>
+        <tr><td>Automation probes sampled per load</td><td>webdriver · $cdc_ (ChromeDriver) · domAutomationController · callPhantom · cefsharp_CreatePromise · __nightmare · Cypress · awesomium · windmill · ubot · boundObject · PerfTestReturnValue</td></tr>
       </tbody>
     </table>
   </div>
 
+  <figure><a href="botguard-img/bg-30.png" target="_blank" rel="noopener"><img src="botguard-img/bg-30.png" alt="DevTools console.table of the live capture: every signal with its read count and bg / eval / other attribution."></a></figure>
+
+  <p>The live capture - each signal with its read count and attribution: bg = /js/bg in the stack, eval = its VM.</p>
+  <p>Not read (this VM): canvas · WebGL / GPU renderer · fonts · AudioContext; the rendering fingerprint, which lives in reCAPTCHA on escalation, not in the interstitial.</p>
+
   <p>
-    So what does it actually read, and why? Every signal it does read answers one
-    question: <strong>is a real human, on a real browser, present right now?</strong> None of them identify
-    the device.
+    So what does it read, and why? The signals split into two jobs. The liveness / timing /
+    behaviour set answers "is a real human, on a real browser, present right now?" The
+    environment and automation set answers "is this a genuine, un-instrumented browser,
+    or an automation rig?"
   </p>
   <p>
     <span class="ul">Timing</span> - performance.now (the proof-of-work clock). The VM runs a compute puzzle and
@@ -582,6 +589,21 @@ cross-check (validates the tool):
     tap, a genuine gesture does. This is evidence of a human.
   </p>
   <p>
+    Environment - screen geometry, devicePixelRatio, window sizing, hardwareConcurrency
+    / deviceMemory, maxTouchPoints, platform, plugins / mimeTypes, languages,
+    connection. The device and OS profile. Each value is weak alone, but together they
+    have to stay internally consistent and consistent with the User-Agent and the network
+    layer - a spoofed or headless environment tends to contradict itself here.
+  </p>
+  <p>
+    Automation probes - a rotating set of tooling tells: WebDriver flags (navigator / window /
+    documentElement), ChromeDriver's $cdc_ global, and headless-framework globals
+    (callPhantom, __nightmare, Cypress, ubot, windmill, awesomium). All of these are
+    undefined on a genuine browser; the moment one is present, the client is an automation
+    rig. It samples a different subset each load, which is why a single capture only sees part
+    of the set.
+  </p>
+  <p>
     <span class="ul">Anti-tamper</span> - Function.prototype.toString. It reads the source of native functions to
     check for the [native code] signature. A wrapped or patched native - an instrumentation
     hook, a spoofed getter shows up right here. This is BotGuard protecting the integrity of
@@ -594,23 +616,14 @@ cross-check (validates the tool):
     VM's own W.eval, and nothing was fingerprinted inside.
   </p>
   <p>
-    So the picture is consistent: these are liveness, timing and tamper checks - about
-    whether a real human is here, not what device it is. The classic device fingerprint
-    (canvas, WebGL/GPU, cores, plugins, fonts, screen) simply isn't in BotGuard's reads on
-    the clean profile; where device identity matters, it's handled earlier at the network layer,
-    or on escalation to reCAPTCHA.
-  </p>
-  <p>
-    I ran this across four fresh interstitials, each a different per-load program, plus a trusted
-    background session, and they all match: the same lean set every time. The device
-    signals that do get read on the page (userAgent, screen, deviceMemory) come from
-    Google's own scripts, not BotGuard. A couple of BotGuard's own probes (the
-    Function.toString anti-hook check, a Protected-Audience presence test) show up in
-    some runs and not others. So the finding isn't scenario-specific or a single-run artifact.
-  </p>
-  <p>
-    Captures attached: captures/fp-interstitial.html, captures/fp-report(3-5).html,
-    captures/fp-trusted.html
+    So the picture is a comprehensive gate: a liveness / timing / proof-of-work core,
+    wrapped in an environment profile and a broad automation-artifact scan. What it
+    deliberately skips is the GPU/canvas rendering fingerprint - that heavier device-identity
+    work is handled by reCAPTCHA on escalation, not here. I ran this across several fresh
+    interstitials, each a different per-load program, plus a trusted background session: the
+    core set is stable, and the automation probes are sampled - a rotating subset each load
+    so it takes a few captures to see the whole battery. This is an observed, attributed lower
+    bound: reads inside a worker or an unreachable realm would not show.
   </p>
 
   <h2 id="closing">Closing the loop</h2>
@@ -639,7 +652,7 @@ Object.defineProperty(Document.prototype, 'cookie', {
     VM's output turned into a cookie.
   </p>
 
-  <figure><a href="botguard-img/bg-30.png" target="_blank" rel="noopener"><img src="botguard-img/bg-30.png" alt="Console logging the SG_SS write with a stack trace originating in the eval'd VM (VM11855)."></a></figure>
+  <figure><a href="botguard-img/bg-31.png" target="_blank" rel="noopener"><img src="botguard-img/bg-31.png" alt="Console logging the SG_SS write with a stack trace originating in the eval'd VM (VM11855)."></a></figure>
 
   <p>
     The token itself isn't a black box either. I decoded a few of them - base64url after the *
@@ -649,7 +662,7 @@ Object.defineProperty(Document.prototype, 'cookie', {
     high-entropy, so it's encrypted - not a plaintext score.
   </p>
 
-  <figure><a href="botguard-img/bg-31.png" target="_blank" rel="noopener"><img src="botguard-img/bg-31.png" alt="Terminal output of analyze_token.py: fixed header/length/marker regions and payload entropy 7.77 bits/byte."></a></figure>
+  <figure><a href="botguard-img/bg-32.png" target="_blank" rel="noopener"><img src="botguard-img/bg-32.png" alt="Terminal output of analyze_token.py: fixed header/length/marker regions and payload entropy 7.77 bits/byte."></a></figure>
 
   <p>
     So SG_SS is a framed, encrypted payload - the collected signals, sealed with a key that
