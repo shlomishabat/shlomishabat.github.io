@@ -254,7 +254,7 @@
   <ol start="2">
     <li>A new connection to 42130 from pid 19252 (<code>Python</code>), flow <code>127.0.0.1:54032 &rarr; 127.0.0.1:1234</code>. On that flow: the same <code>tools=[run_shell]</code> as R1, and this time the response is a tool call, <code>run_shell {"command":"whoami"}</code>.</li>
   </ol>
-  <figure><a href="local-llm-img/ll-08.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-08.png" alt="Kibana rows of the request with tools run_shell and a response carrying a run_shell tool call for whoami."></a></figure>
+  <figure><a href="local-llm-img/ll-08.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-08.png" alt="Kibana rows of the request and a response carrying a run_shell tool call for whoami."></a></figure>
   <p>The model kept calling the tool: six tool calls in a row on one prompt, each after receiving the previous result, until the harness's step limit stopped it. As root, the same model stopped after one. How many times a tool runs is decided by the model; only the harness bounds it.</p>
   <ol start="3">
     <li>In the kernel, one child per tool call: six times <code>sh -c whoami</code> &rarr; <code>whoami</code> with <code>parent.pid</code> 19252 and <code>user.id</code> 501, then once with <code>parent.pid</code> 19753 and <code>user.id</code> 0. Six on the wire, six in the kernel; one and one.</li>
@@ -321,7 +321,7 @@
   <ol>
     <li>No load event, still found. The sensor starts with the model already served. Its one-time enumeration lists the file mapped by <code>llama-server</code> (21918, parent 42130) and reads its header on the spot: <code>Llama 3.2 3B Instruct Abliterated</code>, 256 tensors. From there the chain is the usual one: 42130 listens on <code>:1234</code>, the harness (79561) connects, calls the tool, and <code>whoami</code> runs as its child.</li>
   </ol>
-  <figure><a href="local-llm-img/ll-16.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-16.png" alt="Kibana rows from the start-up enumeration: llama-server mapping the model file, its header read, the listener, the harness connection and the whoami child."></a></figure>
+  <figure><a href="local-llm-img/ll-16.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-16.png" alt="Kibana rows from the start-up enumeration: llama-server mapping the model file, its header read, the listener and the harness connection."></a></figure>
   <ol start="2">
     <li>Exposure is a property of the socket. The listener on <code>:1234</code> is bound to <code>*</code> (all interfaces), reported by the kernel as such, whether or not any config file says so.</li>
   </ol>

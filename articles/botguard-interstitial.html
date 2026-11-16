@@ -183,7 +183,7 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
 
   <p>
     The first cookie-less request to /search returns the interstitial and sets only
-    NID/AEC/__Secure-STRP - <strong>never SG_SS</strong>. First proof that SG_SS is written by the
+    NID/AEC/__Secure-STRP/SEARCH_SAMESITE - <strong>never SG_SS</strong>. First proof that SG_SS is written by the
     challenge on the client, not by the server.
   </p>
 
@@ -263,7 +263,7 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
     JavaScript source maps".
   </p>
 
-  <figure><a href="botguard-img/bg-13.png" target="_blank" rel="noopener"><img src="botguard-img/bg-13.png" alt="Sources tree showing the js/bg script file after disabling source maps."></a></figure>
+  <figure><a href="botguard-img/bg-13.png" target="_blank" rel="noopener"><img src="botguard-img/bg-13.png" alt="Sources tree showing the js/bg script file."></a></figure>
 
   <p>Copy the value of Y:</p>
 
@@ -336,7 +336,7 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
   <figure><a href="botguard-img/bg-20.png" target="_blank" rel="noopener"><img src="botguard-img/bg-20.png" alt="Bytecode interpreter lines 208-213 defining opcodes 92 and 40 with the XOR-121 decode."></a></figure>
 
   <p>
-    <span class="ul">Lines 440-445</span>: the operand's value is read from a register. <code>x(l, G)</code> returns <code>l.g[G]</code>, the
+    <span class="ul">Lines 441-445</span>: the operand's value is read from a register. <code>x(l, G)</code> returns <code>l.g[G]</code>, the
     value held in register G. This is how every opcode obtains its operand values.
   </p>
   <p>
@@ -344,7 +344,7 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
     i.e. runtime state, not something present in the source.
   </p>
 
-  <figure><a href="botguard-img/bg-21.png" target="_blank" rel="noopener"><img src="botguard-img/bg-21.png" alt="Lines 440-445: x = function(l, G) returning l.g[G], the register read."></a></figure>
+  <figure><a href="botguard-img/bg-21.png" target="_blank" rel="noopener"><img src="botguard-img/bg-21.png" alt="Lines 441-445: x = function(l, G) returning l.g[G], the register read."></a></figure>
 
   <p>
     <span class="ul">Lines 66-70</span>: decrypting the bytecode. "w" reads the next unit from the bytecode stream.
