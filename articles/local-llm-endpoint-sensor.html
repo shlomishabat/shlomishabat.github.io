@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local LLM + Unknown Agent Harness on macOS: What an Endpoint Sensor Can Prove | Shlomi Shabat</title>
+<meta name="description" content="What can an endpoint sensor prove about a local LLM and an unknown agent harness on macOS? Four recorded runs with kernel events, socket events and loopback payloads, and what the sensor cannot see.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0e14'/><path d='M25 32 L45 50 L25 68' stroke='%234fd1c5' stroke-width='9' fill='none' stroke-linecap='round' stroke-linejoin='round'/><rect x='52' y='61' width='26' height='9' rx='4' fill='%234fd1c5'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-soft: #0f1420;
+    --card: #131a29;
+    --border: #1f2a40;
+    --text: #e6ebf4;
+    --text-dim: #93a0b8;
+    --accent: #4fd1c5;
+    --accent-soft: rgba(79, 209, 197, 0.12);
+    --accent2: #7aa2f7;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--sans); background: var(--bg); color: var(--text);
+    line-height: 1.75; -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent-soft); color: var(--accent); }
+
+  nav {
+    position: sticky; top: 0; z-index: 50; backdrop-filter: blur(12px);
+    background: rgba(10, 14, 20, 0.82); border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    max-width: 1080px; margin: 0 auto; padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-logo { font-family: var(--mono); font-weight: 600; font-size: 15px; color: var(--accent); text-decoration: none; }
+  .nav-inner a.back { color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500; }
+  .nav-inner a.back:hover { color: var(--accent); }
+
+  article { max-width: 720px; margin: 0 auto; padding: 64px 24px 96px; }
+  .meta { font-family: var(--mono); font-size: 13px; color: var(--text-dim); margin-bottom: 18px; }
+  .meta .tag-inline { color: var(--accent); }
+  h1 { font-size: clamp(28px, 4.5vw, 40px); font-weight: 800; line-height: 1.18; letter-spacing: -0.02em; margin-bottom: 22px; }
+  .standfirst { font-size: 18px; color: var(--text-dim); margin-bottom: 40px; }
+  h2 { font-size: 22px; font-weight: 700; margin: 44px 0 14px; letter-spacing: -0.01em; }
+  h3 { font-size: 17px; font-weight: 650; margin: 30px 0 10px; }
+  p { margin-bottom: 18px; }
+  p, li { font-size: 16px; }
+  strong { color: var(--text); font-weight: 650; }
+  a { color: var(--accent2); }
+  a:hover { color: var(--accent); }
+  ul { margin: 0 0 18px 22px; }
+  li { margin-bottom: 8px; }
+
+  blockquote {
+    border-left: 3px solid var(--accent); background: var(--bg-soft);
+    padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 18px;
+    color: var(--text); font-size: 16.5px;
+  }
+
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--card); padding: 2px 6px; border-radius: 5px; color: var(--accent); }
+  pre {
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 20px; overflow-x: auto; margin-bottom: 18px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: var(--text); font-size: 13px; }
+
+  .table-wrap { overflow-x: auto; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: var(--bg-soft); }
+  tr:last-child td { border-bottom: none; }
+  td { color: var(--text-dim); }
+  td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+
+  .repo-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; margin: 36px 0 0; display: flex; justify-content: space-between;
+    align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .repo-box p { margin: 0; color: var(--text-dim); font-size: 14.5px; }
+  .repo-box a.btn {
+    display: inline-block; background: var(--accent); color: #06281f; font-weight: 600;
+    font-size: 14px; padding: 10px 18px; border-radius: 8px; text-decoration: none; white-space: nowrap;
+  }
+  footer { border-top: 1px solid var(--border); }
+  .footer-inner { max-width: 720px; margin: 0 auto; padding: 28px 24px; color: var(--text-dim); font-size: 13.5px; }
+  .footer-inner a { color: var(--text-dim); }
+
+  figure { margin: 6px 0 24px; }
+  figure a { display: block; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #fff; line-height: 0; }
+  figure a:hover { border-color: var(--accent); }
+  figure img { width: 100%; height: auto; display: block; }
+  .keybox { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 18px 22px 8px; margin: 0 0 28px; }
+  .keybox h2 { margin: 0 0 10px; font-size: 18px; }
+  .run-list td:first-child { white-space: nowrap; }
+  td.wide, table.wide td:first-child { white-space: normal; }
+  table.wide { min-width: 760px; }
+  ol { margin: 0 0 18px 22px; }
+  hr.sep { border: 0; border-top: 1px solid var(--border); margin: 36px 0; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="../index.html">~/shlomi</a>
+    <a class="back" href="../index.html#articles">Back to home</a>
+  </div>
+</nav>
+
+<article>
+  <div class="meta">September 2026 · <span class="tag-inline">AI security</span> · <span class="tag-inline">endpoint detection</span></div>
+  <h1>Local LLM + Unknown Agent Harness on macOS: What an Endpoint Sensor Can Prove</h1>
+
+  <p>All facts below were observed on my Apple Silicon Mac (macOS, SIP enabled), with a sensor built for this research (section 2), in four recorded runs.</p>
+
+  <h2>About this document</h2>
+
+  <p>The scenario: an employee runs a local model in LM Studio or Ollama and points an agent harness at it, possibly as root. The question: what can an endpoint sensor prove about that setup, and what can it not.</p>
+
+  <p>The method: a small sensor built from four data sources on one Mac, and four recorded runs (section 3). Each run states its claim before it is run and its result after, with the evidence as screenshots. Section 4 lists what the sensor cannot see and where the chain of reasoning breaks. Section 5 says what this means for a sensor, from the runs alone, and ends with what was proven and what was not.</p>
+
+<h2>1. How the data was collected</h2>
+
+  <p>The question is not which tool to run but which <strong>data source</strong> answers which part of the detection chain. The chain has four parts:</p>
+  <ul>
+    <li><strong>the model process</strong>: holds the weights behind a listener - turns text into text, never touches the machine.</li>
+    <li><strong>the harness</strong>: the program that sends the prompt and the tool list to the model and executes the tool calls it gets back, with its own permissions.</li>
+    <li><strong>what the harness did</strong>: its child processes.</li>
+    <li><strong>what was said</strong>: the prompt, the tool list, the tool calls on the wire.</li>
+  </ul>
+  <p>Each source below exists because one of these four has no other source.</p>
+
+  <div class="table-wrap">
+    <table class="wide">
+      <thead>
+        <tr><th>Layer</th><th>What it gives</th><th>How (mechanism on this Mac)</th><th>Why we need it (what has no other source)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>L0 disk</td>
+          <td>model identity (name, architecture, quant, tensor count), template text and hash, distributor differences</td>
+          <td>GGUF header parser (stdlib), Ollama blobs by magic, sha256 with cache</td>
+          <td><strong>what the model is.</strong> The kernel gives a file path; only the file itself tells which model it is and which chat template will run.</td>
+        </tr>
+        <tr>
+          <td>L1 socket events</td>
+          <td>TCP listeners and loopback connections with <strong>both</strong> pids, <strong>as they happen</strong>. Plus what already exists when the sensor starts.</td>
+          <td><code>ntstat</code>, the private <code>NetworkStatistics</code> framework behind <code>nettop</code> and Activity Monitor. The kernel pushes every socket open and close with its pid.</td>
+          <td><strong>the harness.</strong> The loopback connection between harness and model can only come from a network-side source.</td>
+        </tr>
+        <tr>
+          <td>L2 kernel events</td>
+          <td><strong>process lifecycle</strong>: every <code>exec</code> with argv, env, euid, code signature and parent; <code>fork</code>; <code>exit</code>. <strong>file access</strong>: every <code>open</code>/<code>mmap</code> with the path.</td>
+          <td>Apple Endpoint Security, consumed through Apple's own signed client <code>/usr/bin/eslogger</code>, JSON on stdout</td>
+          <td><strong>the model process, and what the harness did.</strong> Which pid mapped the model file, and every process the harness spawned.</td>
+        </tr>
+        <tr>
+          <td>L3 payload</td>
+          <td>system prompt, <code>tools[]</code>, tool calls, tool results, model name, on every request/response</td>
+          <td><code>tcpdump -i lo0</code>, all loopback traffic except the sensor's own stack.</td>
+          <td><strong>what was said.</strong> The permissions the harness gave the model (the tool list) and what the model decided (the tool calls).</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Each layer is blind to what the next one sees: L0 files, not activity. L1 connections, not who is inside them or what they carry. L2 processes and files, not network or content. L3 bytes, not processes (the pid comes from L1, joined by flow id).</p>
+
+  <p>Privilege: L0 and L1 run as the user, L2 and L3 need <code>sudo</code>. Nothing needs an Apple entitlement or SIP off (for this PoC I found <code>ntstat</code> and <code>eslogger</code> sufficient).</p>
+
+  <h2>2. The pipeline</h2>
+
+  <p>The goal of the PoC is to reveal what we actually can see and what not, and also to connect all the dots from the findings. I built a small sensor with all 4 collectors based on the layers discussed in the last section. One capture session runs the four collectors side by side on the endpoint and produces a single event stream. Every event carries its layer, the run id, the pid where the source has one, and a small set of tags that say what the event means for the chain: model file mapped, engine loaded, listener, loopback flow with both pids, harness exec, harness child, tool declared, tool call emitted. The stream is indexed in a local Elasticsearch for my investigation.</p>
+
+  <figure><a href="local-llm-img/pipeline.png" target="_blank" rel="noopener"><img src="local-llm-img/pipeline.png" alt="Pipeline diagram: four collectors (disk, socket events, kernel events, loopback payload) feeding one event stream indexed in Elasticsearch."></a></figure>
+
+  <p>Two rules hold throughout. The L1 socket events name which pids are the model server and the harness &rarr; those pids then label the L2 events and their descendants, <strong>so a harness is identified by what it connects to, never by its name</strong>. Secrets in environment and argv are redacted before anything is written.</p>
+
+  <h2>3. The runs</h2>
+
+  <p>Each run tests one claim, written before the run. <code>Observed</code> is what Kibana shows for that run; <code>Result</code> is the comparison.</p>
+
+  <p><em>Note: the harness in R1 and R2 is a 90-line script written for this research (standard OpenAI chat API, one tool <code>run_shell</code>, hardcoded URL, no config, no env).</em></p>
+
+  <div class="table-wrap">
+    <table class="wide">
+      <thead><tr><th>Run</th><th>Name</th></tr></thead>
+      <tbody>
+        <tr><td>R1</td><td>Unknown harness, model without tool template (LM Studio)</td></tr>
+        <tr><td>R2</td><td>Same harness, model with a tool-capable template (LM Studio), as user and as root</td></tr>
+        <tr><td>R3</td><td>Known harness (Claude Code) &rarr; Ollama (R3a); a <code>SYSTEM</code> override (R3b); a community build compared to the stock file (R3c)</td></tr>
+        <tr><td>R4</td><td>Server on <code>0.0.0.0</code>; sensor started after everything is running; an 18 ms process</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>R1 &middot; Unknown harness, model without tool template</h3>
+
+  <p><strong>Claim.</strong> The harness is found only through its loopback flow to the listener, with no product or harness name and no environment hint.</p>
+
+  <p><em>Note: <code>lms</code> is LM Studio's own CLI and only a client of the running app; it connects to <code>Bionic</code> on its control port and the app performs the load, the same path as the Load button.</em></p>
+
+  <p><strong>Setup.</strong> <code>lms unload --all</code> &rarr; capture up &rarr; <code>lms load llama-3.2-3b-instruct</code> &rarr; <code>tiny_harness.py</code> as the user, prompt forcing <code>run_shell</code>.</p>
+
+  <p><strong>Observed.</strong></p>
+  <ol>
+    <li>The kernel reports every file a process maps, one of those is a 1.9 GB file mapped by <code>llama-server</code> (pid 69276), after <code>Bionic</code> (pid 42130) opened it once.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-01.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-01.png" alt="Kibana table of kernel file events: Bionic opens a 1.9 GB model file and llama-server maps it."></a></figure>
+  <ol start="2">
+    <li>The file at that path, read from disk: first bytes <code>GGUF</code>, <code>Llama 3.2 3B Instruct</code>, <code>Q4_K_M</code>, 255 tensors, chat template <code>b48c47f6&hellip;</code>, 348 bytes, no tool section. Join to 1: <code>file.path</code>.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-02.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-02.png" alt="Kibana row of the model identify event with name, quantization, tensor count and template hash."></a></figure>
+  <ol start="3">
+    <li>The process that mapped the file, <code>llama-server</code> (69276), was started by pid 42130; pid 42130 (<code>Bionic</code>) listens on <code>127.0.0.1:1234</code>. Join to 1: <code>process.parent.pid</code> in the exec event equals <code>process.pid</code> in the listen event.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-03.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-03.png" alt="Kibana rows showing the llama-server exec with parent pid 42130 and the listener on 127.0.0.1:1234."></a></figure>
+  <ol start="4">
+    <li>A new connection arrives at pid 42130 from pid 71049 (<code>Python</code>), flow <code>127.0.0.1:61975 &rarr; 127.0.0.1:1234</code>. The kernel gives both ends of the socket by pid: the listener from step 3 and the process that opened the connection to it, the harness. Join to 3: <code>destination.process.pid</code> = 42130.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-04.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-04.png" alt="Kibana row of a loopback flow with source pid 71049 (Python) and destination pid 42130."></a></figure>
+  <!-- NEW TEXT -->
+  <p><em>Note: the same table also has rows with <code>llama-server</code> (69276) as source on port 61896 and <code>Bionic</code> as destination, and ll-03 lists a listener on 61896 under <code>Bionic</code>. 61896 is the internal port between <code>Bionic</code> and its <code>llama-server</code> child (in R3, ll-14 shows the connection going from <code>Bionic</code> to <code>llama-server</code>). The pid and direction of these internal rows are reported inconsistently by <code>ntstat</code> and I did not resolve which side is right. The join <code>destination.process.pid</code> = 42130 therefore also matches these internal rows; the harness is singled out by destination port 1234.</em></p>
+  <!-- /NEW TEXT -->
+  <ol start="5">
+    <li>The bytes on that flow, read from the wire: a chat request with a system prompt and one declared tool, <code>run_shell</code> the response ends with <code>stop</code> and no tool call :) Join to 4: <code>network.flow_id</code> = <code>127.0.0.1:61975 &rarr; 127.0.0.1:1234</code>.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-05.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-05.png" alt="Kibana rows of the chat request with tools run_shell and a response with finish reason stop."></a></figure>
+  <ol start="6">
+    <li>Had the model used the tool, the harness would have spawned <code>sh -c whoami</code> and the kernel would show it here as a child of pid 71049. It shows nothing: the only rows are the harness itself. The wire (5) and the kernel agree, no tool call, no process.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-06.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-06.png" alt="Kibana process events for pid 71049 showing only the harness itself and no child processes."></a></figure>
+
+  <p><strong>Result.</strong> Confirmed. The setup was found from the model file to the harness with no name, port or environment hint: an unknown model and an unknown harness are discovered by the six steps above, each joined to the previous one by a key the kernel provides (path, pid, parent pid, flow). The tool was declared and never used: no tool call on the wire, no process in the kernel.</p>
+
+  <h3>R2 &middot; Same harness, model with a tool-capable template, as user and as root</h3>
+
+  <p><strong>Claim.</strong> Same harness, same prompt, a model file whose template supports tools. The model calls <code>run_shell</code>, the harness runs it, as the user and then as root. The kernel shows the child process, the <code>sudo</code>, and the different template hash on the loaded file.</p>
+
+  <p><strong>Setup.</strong> <code>lms unload --all</code> &rarr; capture up &rarr; <code>lms load lmstudio-community/llama-3.2-3b-instruct</code> &rarr; <code>tiny_harness.py</code> as the user, same prompt as R1 &rarr; <code>sudo python3 tiny_harness.py</code>, same prompt.</p>
+
+  <p><strong>Observed.</strong></p>
+  <ol>
+    <li>The moment <code>Bionic</code> first opened the file, the sensor read its header: <code>Llama 3.2 3B Instruct</code>, <code>Q4_K_M</code>, 255 tensors, chat template <code>5816fce1&hellip;</code>. Same name and tensors as R1's file but <strong>different template</strong>. <code>llama-server</code> (pid 18795, child of 42130) then mapped it, and 42130 listens on <code>:1234</code>, as in R1.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-07.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-07.png" alt="Kibana rows of the model identify event for the tool-capable file, with a different template hash than R1."></a></figure>
+  <ol start="2">
+    <li>A new connection to 42130 from pid 19252 (<code>Python</code>), flow <code>127.0.0.1:54032 &rarr; 127.0.0.1:1234</code>. On that flow: the same <code>tools=[run_shell]</code> as R1, and this time the response is a tool call, <code>run_shell {"command":"whoami"}</code>.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-08.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-08.png" alt="Kibana rows of the request with tools run_shell and a response carrying a run_shell tool call for whoami."></a></figure>
+  <p>The model kept calling the tool: six tool calls in a row on one prompt, each after receiving the previous result, until the harness's step limit stopped it. As root, the same model stopped after one. How many times a tool runs is decided by the model; only the harness bounds it.</p>
+  <ol start="3">
+    <li>In the kernel, one child per tool call: six times <code>sh -c whoami</code> &rarr; <code>whoami</code> with <code>parent.pid</code> 19252 and <code>user.id</code> 501, then once with <code>parent.pid</code> 19753 and <code>user.id</code> 0. Six on the wire, six in the kernel; one and one.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-09.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-09.png" alt="Kibana process events: six sh and whoami child processes under pid 19252 as uid 501, and one under pid 19753 as uid 0."></a></figure>
+  <ol start="4">
+    <li>The root branch as the kernel reports it: <code>sudo</code> (pid 19710) raises 501 &rarr; 0 in a <code>sudo</code> event of its own, forks, and the harness execs as uid 0 (pid 19753); its child <code>sh -c whoami</code> &rarr; <code>whoami</code> (pid 19777, parent 19753) runs as uid 0. The privilege is reported, not inferred.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-10.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-10.png" alt="Kibana process events showing the sudo event, the harness exec as uid 0, and its root child processes."></a></figure>
+
+  <p><strong>Result.</strong> Confirmed. Same harness, same prompt, different template: the model called the tool and the harness ran it, six times as the user and once as root. The <code>sudo</code>, the root harness and its root child are kernel events. The main difference between R1 and R2 the sensor can point at is the template hash of the loaded file; the number of executions was the model's decision. <!-- NEW TEXT -->The two files also come from different distributors (<code>hugging-quants</code> in R1, <code>lmstudio-community</code> in R2) and each run is one sample, so the template is the likely cause, not a proven one.<!-- /NEW TEXT --></p>
+
+
+
+  <h3>R3 &middot; Known harness (Claude Code) &rarr; Ollama with a <code>SYSTEM</code> override</h3>
+
+  <p><strong>Claim.</strong> Three things, in three captures.</p>
+  <ol>
+    <li>A known harness is found by the same chain as the unknown one.</li>
+    <li>There are two ways to modify a model, and only one of them changes the file. A different build is a different file: name, tensor count and hash differ, and the header shows it at first open. A <code>SYSTEM</code> override changes nothing in the file: it lives in Ollama's manifest on disk and in the prompt the server sends to its <code>llama-server</code> child. The file hash catches the first; only the disk and the internal hop catch the second.</li>
+    <li>A new model arriving is an event. <code>Bionic</code> writes it and opens it; the header is read at that first open, before anything uses the file.</li>
+  </ol>
+
+  <p><strong>Setup.</strong> Three captures. <code>R3a</code>: capture up &rarr; Claude Code with <code>ANTHROPIC_BASE_URL=http://localhost:11434</code>, prompt asking for <code>whoami</code> via the Bash tool. <code>R3b</code>: capture up &rarr; the refusal prompt against <code>llama3.2:3b</code> and against <code>llama3.2-unrestricted</code> (Ollama <code>SYSTEM</code> override). <code>R3c</code>: capture up &rarr; in Bionic, download the abliterated build from the Hub, load it, same prompt. <!-- NEW TEXT -->R3b and R3c are different servers and different harnesses.<!-- /NEW TEXT --></p>
+
+  <p><strong>Observed.</strong></p>
+  <ol>
+    <li>A known harness, same chain. Claude Code (pid 91442) starts with <code>ANTHROPIC_BASE_URL=http://localhost:11434</code>, connects to <code>ollama</code> (42700), sends its system prompt with 40 tools, gets back <code>Bash {"command":"whoami"}</code>, and <code>whoami</code> (94918) runs as its descendant. What the unknown harness did not give: the env variable and the tool list.</li>
+  </ol>
+  <p>The command:</p>
+  <pre><code>ANTHROPIC_BASE_URL=http://localhost:11434 ANTHROPIC_AUTH_TOKEN=ollama \
+  claude --model qwen2.5:7b -p "Use the Bash tool to run the command whoami and report its exact output." \
+  --allowedTools Bash --dangerously-skip-permissions</code></pre>
+  <figure><a href="local-llm-img/ll-11.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-11.png" alt="Kibana rows showing Claude Code started with ANTHROPIC_BASE_URL, its request to ollama with 40 tools, a Bash tool call, and the whoami child."></a></figure>
+  <ol start="2">
+    <li>Same pid, both directions. Three loopback flows to <code>ollama</code>, three connections to <code>160.79.104.10:443</code> (Anthropic). Pointed at a local model, the harness still talks to the cloud. The connections are TLS; what they carry was not read.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-12.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-12.png" alt="Kibana rows of flows from the Claude Code pid: three to ollama on loopback and three to 160.79.104.10 port 443."></a></figure>
+  <ol start="3">
+    <li>Modified above the file. Same file, same hash; the <code>system</code> layer is 85 bytes in Ollama's manifest. On the internal hop (<code>:59895</code>) the rendered prompt has one extra line: flow <code>59918</code> (stock) without it, flow <code>59927</code> (override) with it.</li>
+    <li>Modified in the file, and its arrival is an event. <code>Bionic</code> (42130) opens the download folder, the <code>.part</code> file, and the final file, the header is read at that same moment: <code>Llama 3.2 3B Instruct Abliterated</code>, 256 tensors, where every other Llama 3.2 3B on this disk has 255.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-13.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-13.png" alt="Kibana rows: Bionic opens the download folder, the .part file and the final model file, then a model identify event with name Llama 3.2 3B Instruct Abliterated and 256 tensors."></a></figure>
+  <ol start="5">
+    <li>The chat that will run it is itself a harness. <code>Bionic</code> (42130) sends the chat to <code>llama-server</code> (21918) with a 4,822-character system prompt and 26 tools, among them <code>shell_command</code>, <code>run_python</code>, <code>replace_file</code>, <code>delete</code>.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-14.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-14.png" alt="Kibana row of the Bionic chat request to llama-server with a 4,822-character system prompt and 26 tools."></a></figure>
+  <ol start="6">
+    <li>The two files behave differently. Same prompt: in R3b the stock model answers once and stops, no tool call. In R3c the modified file answers with a tool call 83 times in a row (<code>bionic_tool</code> x81, <code>open_url_in_app_browser</code> x2), each executed by the app's chat, until stopped by hand. No step limit hit by then, no shell child. <!-- NEW TEXT -->These are different servers, harnesses and tool lists, so this does not show that the weights alone caused the difference.<!-- /NEW TEXT --></li>
+  </ol>
+  <figure><a href="local-llm-img/ll-15.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-15.png" alt="Kibana aggregation table: the abliterated build issued 81 bionic_tool and 2 open_url_in_app_browser calls, while llama3.2:3b and the SYSTEM-override model made no tool call."></a></figure>
+
+  <p><strong>Result.</strong> Confirmed. A product harness is found by the same chain as our own script. A <code>SYSTEM</code> override leaves the file untouched. It shows only on disk and on the server's internal hop. A different file is identified the moment it arrives, by header and hash, and in LM Studio's chat it acted where the stock model in Ollama stopped.</p>
+
+
+
+  <h3>R4 &middot; Server on <code>0.0.0.0</code>; sensor started after everything is running; an 18 ms process</h3>
+
+  <p><strong>Claim.</strong> Three things a late sensor still gets when it starts after the model server, the model and the harness are all up. It recovers the model process from what is already mapped (a one-time enumeration at start, no load event needed). It sees the listener bound to <code>0.0.0.0</code> as a fact of the socket, not of a config file. It catches a process that lives 18 ms, which a 300 ms poll would usually miss.</p>
+
+  <p><strong>Setup.</strong> Before the capture: LM Studio server restarted with <code>--bind 0.0.0.0</code>, the modified file already loaded. Then capture up &rarr; <code>curl localhost:1234/v1/models</code> (a process that lives 18 ms) &rarr; <code>tiny_harness.py</code> once &rarr; stop.</p>
+
+  <p><strong>Observed.</strong></p>
+  <ol>
+    <li>No load event, still found. The sensor starts with the model already served. Its one-time enumeration lists the file mapped by <code>llama-server</code> (21918, parent 42130) and reads its header on the spot: <code>Llama 3.2 3B Instruct Abliterated</code>, 256 tensors. From there the chain is the usual one: 42130 listens on <code>:1234</code>, the harness (79561) connects, calls the tool, and <code>whoami</code> runs as its child.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-16.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-16.png" alt="Kibana rows from the start-up enumeration: llama-server mapping the model file, its header read, the listener, the harness connection and the whoami child."></a></figure>
+  <ol start="2">
+    <li>Exposure is a property of the socket. The listener on <code>:1234</code> is bound to <code>*</code> (all interfaces), reported by the kernel as such, whether or not any config file says so.</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-17.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-17.png" alt="Kibana row of the listen event on port 1234 bound to all interfaces."></a></figure>
+  <ol start="3">
+    <li>A process that lives 18 ms, every event with a pid. <code>curl</code> (79242): exec at .758, connect to <code>Bionic</code> (42130) and close at .776, exit at .776. Four events, two layers. A 300 ms poll would most likely have seen none of them (about a 6% chance).</li>
+  </ol>
+  <figure><a href="local-llm-img/ll-18.png" target="_blank" rel="noopener"><img src="local-llm-img/ll-18.png" alt="Kibana rows of the curl process: exec, connect, close and exit within 18 milliseconds."></a></figure>
+
+  <p><strong>Result.</strong> Confirmed. A sensor that starts late still closes the chain: one enumeration at start replaces the load event it missed. A listener on all interfaces is read from the socket itself. A process that lives 18 ms is delivered with every pid, exec to exit. What a late sensor never recovers is history: the environment the server started with, and who loaded the model and when.</p>
+
+
+
+  <h2>4. Blind spots and what was not tested</h2>
+
+  <p>Three kinds of gap, kept apart because they need different answers: what the sensor cannot see, where the detection chain itself breaks, and how much one run proves.</p>
+
+  <h3>4.1 Gaps in the sources, and what filled them</h3>
+
+  <div class="table-wrap">
+    <table class="wide">
+      <thead><tr><th>Gap</th><th>Shown by</th><th>Handled in the PoC</th><th>Product answer</th></tr></thead>
+      <tbody>
+        <tr><td>Nothing before the sensor starts; history is gone</td><td>R4 s.1</td><td>enumeration of mapped model files at start</td><td>always-on sensor</td></tr>
+        <tr><td>Endpoint Security has no network events</td><td>R4 s.3</td><td>kernel push channel (<code>ntstat</code>). Polling mostly misses an 18 ms process</td><td>NetworkExtension</td></tr>
+        <tr><td>Endpoint Security has no content</td><td>R1 s.5</td><td>packet capture of all loopback traffic, joined by flow id</td><td>flow inspection with pid attached</td></tr>
+        <tr><td>A server-side <code>SYSTEM</code> prompt and the rendered template are invisible to the harness and to the file hash</td><td>R3b s.3</td><td>read the manifest layer; read the internal hop</td><td>model identity must include the layer above the file</td></tr>
+        <tr><td>The listener is not the model</td><td>R1 s.3</td><td>follow the parent link</td><td>same</td></tr>
+        <tr><td>Tools that run inside the harness process leave no child: 83 tool calls, no <code>exec</code>; the activity is file and network events on the harness pid itself</td><td>R3c s.6</td><td>none; the chain looks only at descendants</td><td>file and network events of the harness pid, not only its children</td></tr>
+        <tr><td>Observation only: nothing can be blocked</td><td>all runs</td><td>none</td><td>own Endpoint Security client (AUTH events)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>4.2 Where the chain breaks</h3>
+
+  <p>The chain in section 2 is: model file &rarr; model process &rarr; listener &rarr; client with an inference request &rarr; its children. Each link rests on an assumption. The rows below need no missing event: the assumption itself fails.</p>
+
+  <div class="table-wrap">
+    <table class="wide">
+      <thead><tr><th>Link</th><th>How it breaks</th><th>What remains for the sensor</th></tr></thead>
+      <tbody>
+        <tr><td>the model is a local file</td><td>the model runs on another machine (LAN, a home GPU box, a private cloud): no local process, no <code>mmap</code>, the chain never starts</td><td>one outbound flow from the harness; with TLS, not even its content</td></tr>
+        <tr><td>the file identifies the model</td><td><code>general.name</code> and the template are metadata anyone can edit without touching the weights; the full hash is the proof but takes seconds on a multi-GB file</td><td>a window between "identified by header" and "verified by hash"</td></tr>
+        <tr><td>the harness is a client of a listener</td><td>model and harness talk over a pipe (<code>llama-cli</code> as a child), a unix socket, or shared memory: no TCP flow, and the harness is the model's parent, not its client</td><td>the process tree only</td></tr>
+        <tr><td>the harness sends an inference request the sensor can read</td><td>TLS or <code>HTTP/2</code> on loopback, gRPC, a private protocol: the parser sees nothing it knows and the client is "other", as <code>lms</code> was in R1</td><td>a pid-to-pid connection, no prompt, no tools</td></tr>
+        <tr><td>one hop between harness and model</td><td>a local gateway (<code>LiteLLM</code>, an enterprise proxy): two or more hops; the PoC resolves one (R1, <code>Bionic</code> &rarr; <code>llama-server</code>)</td><td>the chain stops at the first hop unless it recurses</td></tr>
+        <tr><td>the activity is the harness's children</td><td>a tool writes a <code>LaunchAgent</code>, a cron entry, or sends <code>XPC</code>/<code>AppleScript</code> to another app: <code>launchd</code> or that app executes it, with no parent link</td><td><code>file.path</code> and <code>uipc_connect</code> as the join key, not <code>ppid</code></td></tr>
+        <tr><td>privilege is a privilege event</td><td><code>setuid</code> binaries, <code>launchd</code> jobs already running as root, <code>TCC</code> grants the app already holds: root without any <code>sudo</code>/<code>setuid</code> event (R2 s.4 saw one because the harness called <code>sudo</code>)</td><td><code>euid</code> on every event, plus the TCC database, not the event stream</td></tr>
+        <tr><td>the sensor outlives the harness</td><td>the harness has root on the same machine as the sensor: it can stop <code>tcpdump</code>, stop the Endpoint Security client, or delete the records</td><td>nothing, only a sensor outside the harness's reach (kernel extension, remote shipping as events arrive)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>4.3 One sample per run</h3>
+
+  <p>Every run was executed once, so every count in section 3 is a single sample. Two things move between repetitions: the model's choices, which vary with sampling, and the sensor's delivery, which drops events under load. The rules held in every run and are the finding: a child per executed tool call, none without one, both pids on every connection. The counts are not thresholds until the same case is repeated and the drop rate per event type is measured.</p>
+
+  <h3>4.4 Not tested</h3>
+
+  <ul>
+    <li>A third-party open-source harness (only our script and Claude Code were used).</li>
+    <li>LM Studio's MLX runtime (no <code>GGUF</code>, no <code>libllama</code>); the expected anchor is the Metal device open (<code>iokit_open</code>).</li>
+    <li>A model on another machine; a harness over a pipe, a unix socket, or TLS on loopback.</li>
+    <li>Two hops (a local gateway such as <code>LiteLLM</code> in front of the model server).</li>
+    <li>Tools that execute through <code>launchd</code> or another application rather than as children.</li>
+    <li>The sensor's drop rate per event type (<code>eslogger</code> with a narrower selection).</li>
+    <li>Repeated runs of the same case (N of 3 or more) for the counts above.</li>
+    <li>Blocking: an own Endpoint Security client with AUTH events; NetworkExtension for pid-attributed flows.</li>
+    <li>Sub-kernel inspection in a SIP-off VM (<code>dtrace</code>, in-process hooks) for the rendered prompt.</li>
+  </ul>
+
+  <h2>5. What this means for a sensor</h2>
+
+  <p>An unknown harness and an unknown model are found without any name, port list or environment hint, from the model file up to the connection, by keys the kernel provides. A process maps a model file, its parent listens, a process connects and sends an inference request, its children are the activity. R1 s.1-4 (a script with nothing to its name), R3a s.1 (Claude Code, same chain), R4 s.1 (sensor started late). Product signals (env, config, helpers) add detail. They are not required.</p>
+
+  <p>Everything except intent, each from one source. Model: file, header and template hash at first open (R1 s.2, R2 s.1, R3c s.4), plus what the server adds above the file (R3b s.3). Harness: its exec event and the socket that ties it to the model (R1 s.4, R3a s.1). Permissions: a reported <code>sudo</code> event and the uid on every child (R2 s.4). Tools: the list on the wire (R1 s.5, R3a s.1, R3c s.5). Activity: one child per executed tool call, none when there is none (R2 s.3, R1 s.6, R3c s.6).</p>
+
+  <p>Capability seen on the wire is not activity. A declared tool with no child process in the kernel means nothing ran, and the model's own text claiming otherwise is not evidence. What the agent did is proven by the kernel, not by the model's text: one child process per tool call, with the harness as parent. Six on the wire, six in the kernel. Privilege is a reported fact: a <code>sudo</code> event (501 &rarr; 0), then the harness and its child with uid 0.</p>
+
+  <p>Model identity needs two hashes, file and template, plus whatever the server adds above them. A <code>SYSTEM</code> override changes nothing in the file; only the manifest and the internal hop show it. A different build is visible in the header on first open: a different name, 256 tensors instead of 255. Both are metadata, so they show a different file, not what was changed in it. The likely cause of the difference from R1 is measurable at load time: same name and tensor count, a different chat template hash. The stock model answered once and stopped. The modified file issued 83 tool calls until stopped by hand. <!-- NEW TEXT -->These ran on different servers and tool lists, so they are not a controlled comparison.<!-- /NEW TEXT --></p>
+
+  <p>Four signals: kernel process and file events, kernel socket events with both pids, loopback payload, the model file's header. The blind spots are section 4: what the sources do not give (4.1), where the chain's own assumptions fail (4.2), and what one run does not prove (4.3). The harness never sees the server-side prompt or the rendered template. The file hash never shows them either. Both appear only on disk and on the internal hop. A sensor that reads the harness flow or hashes the GGUF alone misses this class of change. The sensor sees nothing before it starts. Enumeration recovers state (mapped files, listeners), not history (env at exec, who loaded what). That gap is real and bounded. Connection events must come from a push source. Polling at 300 ms misses an 18 ms process about 94% of the time, and a real harness may spawn such processes (health checks, model lists).</p>
+
+  <p>A harness with an exec tool executing what the model decides, especially as root (R2 s.3-4). How many times it executes is the model's choice; the harness is the only brake. <!-- NEW TEXT -->In R2 only the harness's step limit stopped it; in R3c the chat showed no limit before I stopped it by hand at 83.<!-- /NEW TEXT --> A product harness sending its full tool list to a local model and still talking to the vendor cloud (R3a s.1-2). The model server's own chat as a harness with shell and file tools (R3c s.5); a model modified above or in the file (R3b s.3, R3c s.4); a model server bound to all interfaces (R4 s.2). A model file arrives from the internet and issues tool calls in a loop. Not a finding on its own: a server spawning shells.</p>
+
+  <p>Detect on what survives renaming: the model file's magic and header, the template hash, the process graph; never a product name or a port list. Collect events, not snapshots: a signed Endpoint Security client and a NetworkExtension, the product form of what this PoC did with <code>eslogger</code> and the kernel's socket channel. Control at the harness, where a tool call becomes a process: <code>sudo</code> under a harness, a shell child of a process that talks to a model server, a model file that fails its identity check. Read the layer above the file, because a <code>SYSTEM</code> change never touches the hash.</p>
+
+  <h3>What can be proven, and what cannot</h3>
+
+  <div class="table-wrap">
+    <table class="wide">
+      <thead><tr><th>Proven here</th><th>Not provable by this design</th></tr></thead>
+      <tbody>
+        <tr><td>which file is the model, by path, header and hash</td><td>that the weights are unmodified, without an upstream reference</td></tr>
+        <tr><td>which process holds it and which one listens</td><td>anything before the sensor started</td></tr>
+        <tr><td>who connected, with pid, uid, argv and env at birth</td><td>an environment changed after exec; the content of config files read</td></tr>
+        <tr><td>what the harness sent and allowed, on the wire</td><td>the same, once the harness uses TLS, a unix socket or in-process inference</td></tr>
+        <tr><td>what ran, with argv and euid, child by child</td><td>the intent behind a command</td></tr>
+        <tr><td>that a <code>SYSTEM</code> layer or a different build is in place</td><td>that the modification is effective, other than by watching what the model then does</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</article>
+
+<footer>
+  <div class="footer-inner">
+    <a href="../index.html">Shlomi Shabat</a> · Cyber Security Researcher · Tel Aviv
+  </div>
+</footer>
+
+</body>
+</html>

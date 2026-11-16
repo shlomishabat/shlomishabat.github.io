@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Google's BotGuard Interstitial Challenge Breakdown | Shlomi Shabat</title>
-<meta name="description" content="Reverse-engineering Google's BotGuard interstitial: a JavaScript proof-of-work challenge that turns out to be a liveness / timing / behaviour gate, not the device fingerprint you'd expect.">
+<meta name="description" content="Reverse-engineering Google's BotGuard interstitial: a JavaScript timing / integrity challenge that scans the browser environment and probes for automation, not the GPU/canvas fingerprint you'd expect.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0e14'/><path d='M25 32 L45 50 L25 68' stroke='%234fd1c5' stroke-width='9' fill='none' stroke-linecap='round' stroke-linejoin='round'/><rect x='52' y='61' width='26' height='9' rx='4' fill='%234fd1c5'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -123,16 +123,14 @@
   <div class="meta">August 2026 · <span class="tag-inline">reverse engineering</span> · <span class="tag-inline">bot detection</span></div>
   <h1>Google's BotGuard Interstitial Challenge Breakdown</h1>
   <p class="standfirst">
-    Bottom line: the interstitial is Google BotGuard, a JavaScript proof-of-work challenge.
+    Bottom line: the interstitial is Google BotGuard, a JavaScript timing / integrity challenge.
     Reverse-engineered, it runs a broad environment scan and a heavy automation-tooling
-    probe on top of a liveness / timing / proof-of-work gate. It is not the GPU/canvas
-    rendering fingerprint you might expect - it profiles the browser environment and probes
-    hard for automation artifacts.
+    probe on top of a timing / integrity gate. I saw no GPU/canvas rendering fingerprint in
+    the captures - it profiles the browser environment and probes hard for automation artifacts.
   </p>
 
   <div class="doc-actions">
-    <a class="primary" href="BotGuard-Interstitial-Report-ShlomiShabat.pdf" target="_blank" rel="noopener">Original PDF ↓</a>
-    <a href="https://github.com/shlomishabat/BotGuard-RE" target="_blank" rel="noopener">Tools &amp; captures on GitHub ↗</a>
+    <a class="primary" href="https://github.com/shlomishabat/BotGuard-RE" target="_blank" rel="noopener">Tools &amp; captures on GitHub ↗</a>
   </div>
 
   <h2 id="triggers">What triggers the interstitial and what doesn't?</h2>
@@ -164,11 +162,9 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
   <figure><a href="botguard-img/bg-02.png" target="_blank" rel="noopener"><img src="botguard-img/bg-02.png" alt="Terminal running the same request with a plain NID cookie, still printing CHALLENGE."></a></figure>
 
   <p>
-    What actually clears it is a validated session - the NID you get after passing BotGuard,
-    not just any NID. Until you have that, any request that looks like a browser but isn't
-    trusted gets the interstitial. Three outcomes:
+    Only these two variations are shown here: a browser-like TLS fingerprint, and the same
+    with a plain NID cookie. Both got the challenge.
   </p>
-  <p>Trusted -&gt; results, browser-like-but-untrusted -&gt; interstitial, obvious bot -&gt; reCAPTCHA.</p>
 
   <h2 id="loads">How the challenge loads</h2>
   <p class="section-lead">
@@ -176,9 +172,9 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
     the request, the challenge, and the token exchange.
   </p>
   <p>
-    First I took the response of <code>google.com/anything</code> from a clean profile (and no cookies)
+    First I took the response of <code>google.com/search?q=anything</code> from a clean profile (and no cookies)
     to investigate where the interstitial challenge is being loaded. The first HTML response
-    is not the query response, we can see that a request after the &ldquo;sei&rdquo; param is being
+    is not the query response, we can see that a request is sent after it with the &ldquo;sei&rdquo; param
     added and only then we&rsquo;re getting the query results HTML.
   </p>
 
@@ -231,7 +227,7 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
   <ol class="body-list">
     <li>Creates a script - the page's CSP blocks plain eval, so it wraps the VM source
       with the policy's <code>createScript(...)</code> into a Trusted Script the CSP will accept.</li>
-    <li>Run it - It hands that script to indirect eval - which executes it in the global scope.
+    <li>Run it - it hands that script to indirect eval - which executes it in the global scope.
       That single line is the whole activation: build a trusted script, then eval it.</li>
   </ol>
 
@@ -246,21 +242,21 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
 
   <figure><a href="botguard-img/bg-10.png" target="_blank" rel="noopener"><img src="botguard-img/bg-10.png" alt="The joined VM source after js-beautify, starting with the Google LLC copyright banner."></a></figure>
 
-  <p>From here i&rsquo;ve found the path js/bg in the code:</p>
+  <p>From here I have found the path js/bg in the code:</p>
 
   <figure><a href="botguard-img/bg-11.png" target="_blank" rel="noopener"><img src="botguard-img/bg-11.png" alt="The VM source referencing https://www.google.com/js/bg/ and a fromCharCode literal."></a></figure>
 
   <p>
-    So i&rsquo;ve tried to find a request that is being loaded since clearly the URL is built
+    So I have tried to find a request that is being loaded since clearly the URL is built
     dynamically by the code.
   </p>
-  <p>Then I've found a request whose structure looks exactly like our interpreter.</p>
+  <p>Then I have found a request whose structure looks exactly like our interpreter.</p>
 
   <figure><a href="botguard-img/bg-12.png" target="_blank" rel="noopener"><img src="botguard-img/bg-12.png" alt="Network panel and Response tab showing the bg script served from /js/bg/ with the same interpreter structure."></a></figure>
 
   <p>
     So again I took the code, and compared it to the one we got inline.
-    This time i&rsquo;ve used the debugger to extract the script being injected into the eval:
+    This time I have used the debugger to extract the script being injected into the eval:
   </p>
   <p>
     First obstacle - the decoy blanks DevTools. One toggle fixes it: uncheck "Enable
@@ -284,8 +280,8 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
 
   <p>
     Same endpoint literal, same template-tag call, and the same 16 character codes
-    decoding to the same hidden token integCheckBypass. The only differences are the
-    renamed helper (Ej / Ay) and a numeric argument. A different program would not
+    decoding to the same hidden token integCheckBypass. The visible differences are the
+    renamed helper (Ej / Ay) and a numeric argument (the cipher round constant differs too, see the static section). A different program would not
     independently invent this exact URL and this exact char-code-encoded string.
   </p>
 
@@ -304,9 +300,9 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
     With the VM in hand, the obvious move is to read the checks straight out of it. It doesn't
     work, and here's exactly why.
   </p>
-  <p>Now i started to look for any fingerprint marks in the scripts so i&rsquo;ve run the following:</p>
+  <p>Now I started to look for any fingerprint marks in the scripts so I have run the following:</p>
 
-  <pre><code>printf 'property-name string literals found in bg.pretty.js: '; grep -oE "[\"'](webdriver|userAgent|appVersion|platform|vendor|language|languages|plugins|mimeTypes|hardwareConcurrency|deviceMemory|maxTouchPoints|connection|userAgentData|chrome|toDataURL|getImageData|getParameter|getExtension|performance|hidden|visibilityState|getTimezoneOffset|screen|width|height|colorDepth|devicePixelRatio|localStorage|indexedDB|cookie)[\"']" new_namual/script/js/bg.pretty.js | wc -l | tr -d ' '</code></pre>
+  <pre><code>printf 'property-name string literals found in bg.pretty.js: '; grep -oE "[\"'](webdriver|userAgent|appVersion|platform|vendor|language|languages|plugins|mimeTypes|hardwareConcurrency|deviceMemory|maxTouchPoints|connection|userAgentData|chrome|toDataURL|getImageData|getParameter|getExtension|performance|hidden|visibilityState|getTimezoneOffset|screen|width|height|colorDepth|devicePixelRatio|localStorage|indexedDB|cookie)[\"']" bg.pretty.js | wc -l | tr -d ' '</code></pre>
 
   <p>Results:</p>
 
@@ -371,8 +367,9 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
   <p>
     It is an ARX block cipher (add / rotate / XOR): 15 rounds of 8- and 3-bit rotations,
     additions, and XORs against a round constant derived from the key plus 3766, returning
-    8 output bytes. Its key material comes from the bytecode header (registers seeded per
-    load), so the same ciphertext decrypts differently on every response.
+    8 output bytes. <!-- NEW TEXT -->The structure (ROR 8, ROL 3, add, XOR with a round-dependent key) resembles
+    Speck64.<!-- /NEW TEXT --> Its key material comes from the bytecode
+    header (registers seeded per load), so the same ciphertext decrypts differently on every response.
   </p>
   <p>
     This is why the encrypted program (p = 'srgC8z&hellip;' in the page) is unreadable without
@@ -388,10 +385,10 @@ print('CHALLENGE' if 'sg_ss' in b or 'enablejs' in b else 'results')"</code></pr
     U4). I re-implemented that in Python (analysis/decrypt_bytecode.py) .
   </p>
   <p>
-    It doesn't decrypt cleanly - and that's the point. The key is self-bootstrapping: it starts
-    empty and the bytecode writes the real one. And the cipher is diversified per build - the
-    round constant is 3766 in the served bg.js but 2111 in this inline copy, and the key even
-    sits in a different register. So decrypting a program means re-implementing that exact
+    It doesn't decrypt cleanly - that could be a bug in my decrypt_bytecode.py. The key may be
+    self-bootstrapping: it starts empty and the bytecode may write the real one. And the cipher is
+    diversified per build - the round constant is 3766 in the served bg.js but 2111 in this inline copy,
+    and the key even sits in a different register. So decrypting a program means re-implementing that exact
     build's VM.
   </p>
 
@@ -411,8 +408,8 @@ for a in arrays:
     print(a, "-&gt;", "".join(chr(n ^ 121) for n in nums))</code></pre>
 
   <p>
-    no name is recoverable from the source. The entire file contains only 4 numeric-array
-    literals, and none decode to a property name: they are [0, 0, 0] (register initialisation)
+    no name is recoverable from the source. The regex finds only 4 numeric-array
+    literals in the file. Two are shown here and neither decodes to a property name: they are [0, 0, 0] (register initialisation)
     and [0, 0, 1, 1, 0, 1, 1] (a flags vector).
   </p>
   <p>
@@ -422,7 +419,7 @@ for a in arrays:
     the source.
   </p>
 
-  <pre><code>numeric-array literals in the whole file : 4
+<pre><code>numeric-array literals matching the regex : 4  (2 of 4 shown below)
 of those, XOR-121 -&gt; a readable name     : 0
 
     [0, 0, 0]               -&gt; 'yyy'          (register init, not a name)
@@ -434,16 +431,19 @@ cross-check (validates the tool):
   <p>
     Conclusion: Three independent lines of evidence converge: the operand values are
     read from registers, the registers are filled by <strong>decrypting per-load bytecode</strong> with a
-    <strong>per-load key</strong>, and a full census of the file's literals recovers no names.
+    <strong>per-load key</strong>, and a regex scan of the file's numeric-array literals recovers no names.
   </p>
   <p>
     The interpreter itself is fully visible statically, but the properties it reads are materialised
     only during execution.
   </p>
   <p>
-    The list of collected signals therefore cannot be enumerated by reading the code - it has
+    The list of collected signals therefore can't easily be enumerated by reading the code - it has
     to be observed while the engine runs, which is the dynamic phase.
   </p>
+  <!-- NEW TEXT -->
+  <p>Prior work: BgUtils and the YouTube PoToken research.</p>
+  <!-- /NEW TEXT -->
 
   <h2 id="dynamic">Dynamic - watching it run</h2>
   <p class="section-lead">
@@ -458,7 +458,7 @@ cross-check (validates the tool):
 
   <figure><a href="botguard-img/bg-25.png" target="_blank" rel="noopener"><img src="botguard-img/bg-25.png" alt="Global Search results for fromCharCode locating the XOR-121 decoder inside the /js/bg/ script."></a></figure>
 
-  <p>In the console, I set a breakpoint on the script and dived into the VM:</p>
+  <p>In Sources, I set a breakpoint on the script and dived into the VM:</p>
 
   <figure><a href="botguard-img/bg-26.png" target="_blank" rel="noopener"><img src="botguard-img/bg-26.png" alt="Sources debugger paused inside the eval'd VM script."></a></figure>
 
@@ -493,8 +493,8 @@ cross-check (validates the tool):
     real browser run the challenge, without ever touching the VM.
   </p>
   <p>
-    At this point I've decided to build an extension that will hook all the fingerprinting being
-    collected by the script. This idea grew out of a tool I already had. I built and maintained -
+    At this point I decided to build an extension that will hook all the fingerprinting being
+    collected by the script. This idea grew out of a tool I already had: I built and maintained
     <a href="https://github.com/shlomishabat/fpMonD" target="_blank" rel="noopener">fpMonD</a>, a fingerprint-monitoring Chrome extension.
   </p>
   <p>
@@ -507,7 +507,6 @@ cross-check (validates the tool):
     fpMonD's own signal list and DuckDuckGo's fingerprinting surface
     (<a href="https://github.com/duckduckgo/content-scope-scripts" target="_blank" rel="noopener">content-scope-scripts</a> + their API-call collector <a href="https://github.com/duckduckgo/tracker-radar-collector" target="_blank" rel="noopener">tracker-radar-collector</a>).
   </p>
-  <p>Extension folder: /fp-monitor-ext attached to the report.</p>
   <p>Why it is built the way it is:</p>
   <ul class="body-list">
     <li><strong>Fidelity first</strong> - BotGuard detects observers, so I run in a real, un-automated
@@ -523,15 +522,15 @@ cross-check (validates the tool):
     <li><strong>Attribution</strong> - every read carries a stack; the hook is tagged
       <code>//# sourceURL=__fp_hook__.js</code> so its own frames drop out, leaving the real caller
       (immediate) and initiator (root). /js/bg/ anywhere in the stack = certain BotGuard;
-      eval/anon = BotGuard's VM mixed with other eval'd code.</li>
+      eval/anon = BotGuard's VM mixed with other eval'd code, so it is not certain.</li>
     <li><strong>Low-observability</strong> - wrapped functions answer Function.prototype.toString with
       the exact native string, so BotGuard's toString anti-hook probe does not see
       them. A descriptor check could still spot a non-native getter, but I didn't run into
       that here.</li>
     <li><strong>Signal isolation</strong> - the results page is noisy: YouTube embeds and ad/analytics
-      tags fingerprint too, in the same eval/anon bucket. Rather than block them and
-      assume whatever's left is BotGuard, I capture on the interstitial itself, where
-      BotGuard is the only thing running - so every read is unambiguously its.</li>
+      tags fingerprint too, in the same eval/anon bucket. I capture on the interstitial itself, where
+      BotGuard is the main thing running. Other code still reads some signals (userAgent 3,704 and
+      innerWidth 1,007 in the <code>other</code> column), so the attribution is partial.</li>
   </ul>
 
   <p>
@@ -541,56 +540,57 @@ cross-check (validates the tool):
     for clean natives, which turned out to be just an eval sandbox with nothing fingerprinted
     inside. No Web Worker either. One caveat turned out to matter more than I first thought:
     the accessor catch-all can only see properties that exist. The automation probes
-    BotGuard runs - window.domAutomationController, document.$cdc_..., window.callPhantom - are
+    BotGuard runs - window.domAutomationController, document.$cdc_..., window.__nightmare - are
     undefined on a clean browser, so there is no getter to hook; the catch-all is blind to
     them by construction. Once I added logging getters that register even an undefined read,
     the whole probe battery appeared. (This is why my first pass reported them as "not read"
     - they were never observable, not absent.)
   </p>
-  <p>Here's the full set - broader than my first pass caught:</p>
+  <p>Here's the set seen in the capture below - broader than my first pass caught:</p>
 
   <div class="table-wrap">
     <table>
       <tbody>
-        <tr><td>Liveness / proof-of-work</td><td>performance.now · document.hidden / readyState · Function.toString (anti-hook)</td></tr>
-        <tr><td>Behaviour</td><td>mousedown / mouseup · touchstart / touchend</td></tr>
-        <tr><td>Environment</td><td>screen.* · devicePixelRatio · inner / outer size · hardwareConcurrency · deviceMemory · maxTouchPoints · platform · connection · plugins / mimeTypes · languages · history.length · chrome</td></tr>
-        <tr><td>Locale / clock</td><td>getTimezoneOffset · wall clock (h / m) · timezone</td></tr>
-        <tr><td>Automation probes sampled per load</td><td>webdriver · $cdc_ (ChromeDriver) · domAutomationController · callPhantom · cefsharp_CreatePromise · __nightmare · Cypress · awesomium · windmill · ubot · boundObject · PerfTestReturnValue</td></tr>
+        <tr><td>Timing</td><td>performance.now (25,257 reads: bg 11,661 / eval 13,416 / other 180) · performance.timing (570) · performance.timeOrigin (88)</td></tr>
+        <!-- NEW TEXT --><tr><td>Browser identity</td><td>navigator.userAgent (6,236 reads: eval 2,532 / other 3,704) · navigator.userAgentData (90: eval 27 / other 63)</td></tr><!-- /NEW TEXT -->
+        <tr><td>Environment</td><td>screen.* · devicePixelRatio · innerWidth / innerHeight / outerWidth / outerHeight · hardwareConcurrency · deviceMemory · maxTouchPoints · connection · performance.memory · plugins / mimeTypes · languages · history.length</td></tr>
+        <tr><td>Locale / clock</td><td>Date.getTimezoneOffset (45) · wall clock (hours / minutes)</td></tr>
+        <tr><td>Automation probes</td><td>webdriver (navigator / window / element attribute) · document.__webdriver_script_fn · $cdc_ (ChromeDriver) · domAutomationController · cefsharp_CreatePromise · __nightmare · awesomium · windmill · boundObject · PerfTestReturnValue</td></tr>
+        <!-- NEW TEXT --><tr><td>Observed in a run not shown</td><td>document.hidden / readyState · Function.prototype.toString · mousedown / mouseup / touchstart / touchend listeners · callPhantom · Cypress · ubot</td></tr><!-- /NEW TEXT -->
       </tbody>
     </table>
   </div>
 
   <figure><a href="botguard-img/bg-30.png" target="_blank" rel="noopener"><img src="botguard-img/bg-30.png" alt="DevTools console.table of the live capture: every signal with its read count and bg / eval / other attribution."></a></figure>
 
-  <p>The live capture - each signal with its read count and attribution: bg = /js/bg in the stack, eval = its VM.</p>
-  <p>Not read (this VM): canvas · WebGL / GPU renderer · fonts · AudioContext; the rendering fingerprint, which lives in reCAPTCHA on escalation, not in the interstitial.</p>
+  <p>The live capture - each signal with its read count and attribution: bg = /js/bg in the stack, eval = its VM (mixed with other eval'd code), other = neither.</p>
+  <p>Not seen in the captures: canvas · WebGL / GPU renderer · fonts · AudioContext.</p>
 
   <p>
-    So what does it read, and why? The signals split into two jobs. The liveness / timing /
-    behaviour set answers "is a real human, on a real browser, present right now?" The
-    environment and automation set answers "is this a genuine, un-instrumented browser,
-    or an automation rig?"
+    So what does it read, and why? My reading is that the signals answer one question: "is this
+    a genuine, un-instrumented browser, or an automation rig?"
   </p>
   <p>
-    <span class="ul">Timing</span> - performance.now (the proof-of-work clock). The VM runs a compute puzzle and
-    times it against the high-resolution clock. This both proves the work was really done on
-    the client and exposes artificial slowdown - a debugger, single-stepping, or heavy
-    instrumentation stretches the timing. Polled continuously (~1,675 reads  per run).
+    <span class="ul">Timing</span> - performance.now. The VM times itself against the high-resolution
+    clock. This exposes artificial slowdown - a debugger, single-stepping, or heavy
+    instrumentation stretches the timing. Polled continuously (25,257 reads in the run shown). I did not find a puzzle loop.
+  </p>
+  <!-- NEW TEXT -->
+  <p>
+    <span class="ul">Browser identity</span> - navigator.userAgent and navigator.userAgentData. userAgent is read
+    6,236 times (2,532 in eval, 3,704 in other code), userAgentData 90 times (27 in eval, 63 in other).
+  </p>
+  <!-- /NEW TEXT -->
+  <p>
+    <span class="ul">Liveness</span> - document.hidden / document.readyState, polled constantly in a run not shown here.
   </p>
   <p>
-    <span class="ul">Liveness</span> - document.hidden / document.readyState. Polled constantly (~1,637 reads). A
-    real user's tab is visible and focused; headless runs and background automation read
-    as hidden. Cheap to sample, hard to fake convincingly over time.
-  </p>
-  <p>
-    <span class="ul">Behaviour</span> - mousedown / mouseup / touchstart / touchend. It subscribes to the raw
-    input events. A synthetic element.click() has no matching physical press-and-release or
-    tap, a genuine gesture does. This is evidence of a human.
+    <span class="ul">Behaviour</span> - mousedown / mouseup / touchstart / touchend, also from a run not shown. It
+    listens for input events; whether they gate the verdict was not tested.
   </p>
   <p>
     Environment - screen geometry, devicePixelRatio, window sizing, hardwareConcurrency
-    / deviceMemory, maxTouchPoints, platform, plugins / mimeTypes, languages,
+    / deviceMemory, maxTouchPoints, plugins / mimeTypes, languages,
     connection. The device and OS profile. Each value is weak alone, but together they
     have to stay internally consistent and consistent with the User-Agent and the network
     layer - a spoofed or headless environment tends to contradict itself here.
@@ -598,28 +598,27 @@ cross-check (validates the tool):
   <p>
     Automation probes - a rotating set of tooling tells: WebDriver flags (navigator / window /
     documentElement), ChromeDriver's $cdc_ global, and headless-framework globals
-    (callPhantom, __nightmare, Cypress, ubot, windmill, awesomium). All of these are
+    (__nightmare, windmill, awesomium). All of these are
     undefined on a genuine browser; the moment one is present, the client is an automation
     rig. It samples a different subset each load, which is why a single capture only sees part
     of the set.
   </p>
   <p>
-    <span class="ul">Anti-tamper</span> - Function.prototype.toString. It reads the source of native functions to
+    <span class="ul">Anti-tamper</span> - Function.prototype.toString, also from a run not shown. It reads the source of native functions to
     check for the [native code] signature. A wrapped or patched native - an instrumentation
-    hook, a spoofed getter shows up right here. This is BotGuard protecting the integrity of
+    hook, a spoofed getter would show up right here. This looks like BotGuard protecting the integrity of
     its own measurements.
   </p>
   <p>
     <span class="ul">Clean realm</span> - the blank <code>&lt;iframe&gt;</code>. It inserts a blank same-origin iframe and runs VM
     code through its pristine eval, so its logic executes on native functions that page-level
-    hooks cannot have touched. I confirmed the purpose: the access was attributed to the
+    hooks cannot have touched. The access was attributed to the
     VM's own W.eval, and nothing was fingerprinted inside.
   </p>
   <p>
-    So the picture is a comprehensive gate: a liveness / timing / proof-of-work core,
-    wrapped in an environment profile and a broad automation-artifact scan. What it
-    deliberately skips is the GPU/canvas rendering fingerprint - that heavier device-identity
-    work is handled by reCAPTCHA on escalation, not here. I ran this across several fresh
+    So the picture is a comprehensive gate: a timing core,
+    wrapped in an environment profile and a broad automation-artifact scan. I did not see the GPU/canvas
+    rendering fingerprint in any capture. I ran this across several fresh
     interstitials, each a different per-load program, plus a trusted background session: the
     core set is stable, and the automation probes are sampled - a rotating subset each load
     so it takes a few captures to see the whole battery. This is an observed, attributed lower
@@ -655,37 +654,30 @@ Object.defineProperty(Document.prototype, 'cookie', {
   <figure><a href="botguard-img/bg-31.png" target="_blank" rel="noopener"><img src="botguard-img/bg-31.png" alt="Console logging the SG_SS write with a stack trace originating in the eval'd VM (VM11855)."></a></figure>
 
   <p>
-    The token itself isn't a black box either. I decoded a few of them - base64url after the *
-    marker - and lined them up byte-for-byte. There's a clear structure: a fixed header, two
+    The token itself isn&rsquo;t a black box either. I decoded a few of them - base64url after the *
+    marker - and lined them up byte-for-byte. There&rsquo;s a clear structure: a fixed header, two
     little-endian length fields, and a marker that are identical in every token (the envelope),
     wrapped around a large body that changes completely each time. That body is
-    high-entropy, so it's encrypted - not a plaintext score.
+    high-entropy, so it's likely encrypted - not a plaintext score.
   </p>
 
   <figure><a href="botguard-img/bg-32.png" target="_blank" rel="noopener"><img src="botguard-img/bg-32.png" alt="Terminal output of analyze_token.py: fixed header/length/marker regions and payload entropy 7.77 bits/byte."></a></figure>
 
   <p>
-    So SG_SS is a framed, encrypted payload - the collected signals, sealed with a key that
-    lives on Google's server, not in the browser. That's why we can't read it, and why you
-    can't forge or replay one: only the server can open the envelope, check the signals and
-    the session binding (the sei), and if it's a real browser, hand back the NID. It's single-use
-    - tied to that one sei, and the server deletes it (SG_SS=0) the moment it's spent.
+    So SG_SS is a framed, encrypted payload - the collected signals, sealed with a key. That's why we can't read it. Presumably the server checks the signals and the session binding (the sei), and if it's a real browser, hands back the NID. The server deletes it (SG_SS=0) the moment it's spent.
   </p>
   <p>And that's the whole loop:</p>
-  <p class="loop-line">signals -&gt; VM builds the token -&gt; page writes it as SG_SS -&gt; sent with &amp;sei= -&gt; google returns NID -&gt; browser trusted, no more interstitial.</p>
+  <p class="loop-line">signals -&gt; VM builds the token -&gt; page writes it as SG_SS -&gt; sent with &amp;sei= -&gt; Google returns NID -&gt; browser trusted, no more interstitial.</p>
 
-  <h2 id="practice">What this means in practice.</h2>
+  <h2 id="practice">What this means in practice</h2>
   <p>
-    Because the challenge is a liveness + timing + behaviour check, not a device scan,
-    getting through it is about being a real browser, not looking like one. A real Chrome with
-    a visible, focused tab, genuine timing, and untouched native functions passes; spoofing
-    canvas, the user-agent, or the GPU string does nothing here - BotGuard never reads
-    them. That kind of device fingerprinting matters elsewhere - at the network layer, or if
-    you fail and get bumped to reCAPTCHA.
+    <!-- NEW TEXT -->Because the challenge is a timing check plus an environment and automation scan, getting through it is
+    about being a real browser, not looking like one. BotGuard reads the user-agent, so spoofing it is not
+    free, and I did not see it read canvas or the GPU string. I did not test which signals gate the verdict.<!-- /NEW TEXT -->
   </p>
 
   <div class="repo-box">
-    <p>The full toolset - the deobfuscation and analysis scripts, the cross-realm monitor extension, and the captured sessions - is on GitHub, with the original report attached.</p>
+    <p>The full toolset - the deobfuscation and analysis scripts, the cross-realm monitor extension, and the captured sessions - is on GitHub.</p>
     <a class="btn" href="https://github.com/shlomishabat/BotGuard-RE" target="_blank" rel="noopener">Code on GitHub</a>
   </div>
 </article>

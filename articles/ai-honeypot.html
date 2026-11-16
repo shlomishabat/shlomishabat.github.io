@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Who actually attacks exposed AI infrastructure? | Shlomi Shabat</title>
+<meta name="description" content="A honeypot study of a decoy self-hosted LLM backend on the open internet: who hunts exposed AI infrastructure, how an autonomous agent differs from a script, and what changed over four months.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0e14'/><path d='M25 32 L45 50 L25 68' stroke='%234fd1c5' stroke-width='9' fill='none' stroke-linecap='round' stroke-linejoin='round'/><rect x='52' y='61' width='26' height='9' rx='4' fill='%234fd1c5'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-soft: #0f1420;
+    --card: #131a29;
+    --border: #1f2a40;
+    --text: #e6ebf4;
+    --text-dim: #93a0b8;
+    --accent: #4fd1c5;
+    --accent-soft: rgba(79, 209, 197, 0.12);
+    --accent2: #7aa2f7;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--sans); background: var(--bg); color: var(--text);
+    line-height: 1.75; -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent-soft); color: var(--accent); }
+
+  nav {
+    position: sticky; top: 0; z-index: 50; backdrop-filter: blur(12px);
+    background: rgba(10, 14, 20, 0.82); border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    max-width: 1080px; margin: 0 auto; padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-logo { font-family: var(--mono); font-weight: 600; font-size: 15px; color: var(--accent); text-decoration: none; }
+  .nav-inner a.back { color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500; }
+  .nav-inner a.back:hover { color: var(--accent); }
+
+  article { max-width: 720px; margin: 0 auto; padding: 64px 24px 96px; }
+  .meta { font-family: var(--mono); font-size: 13px; color: var(--text-dim); margin-bottom: 18px; }
+  .meta .tag-inline { color: var(--accent); }
+  h1 { font-size: clamp(28px, 4.5vw, 40px); font-weight: 800; line-height: 1.18; letter-spacing: -0.02em; margin-bottom: 22px; }
+  .standfirst { font-size: 18px; color: var(--text-dim); margin-bottom: 40px; }
+  h2 { font-size: 22px; font-weight: 700; margin: 44px 0 14px; letter-spacing: -0.01em; }
+  h3 { font-size: 17px; font-weight: 650; margin: 30px 0 10px; }
+  p { margin-bottom: 18px; }
+  p, li { font-size: 16px; }
+  strong { color: var(--text); font-weight: 650; }
+  a { color: var(--accent2); }
+  a:hover { color: var(--accent); }
+  ul { margin: 0 0 18px 22px; }
+  li { margin-bottom: 8px; }
+
+  blockquote {
+    border-left: 3px solid var(--accent); background: var(--bg-soft);
+    padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 18px;
+    color: var(--text); font-size: 16.5px;
+  }
+
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--card); padding: 2px 6px; border-radius: 5px; color: var(--accent); }
+  pre {
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 20px; overflow-x: auto; margin-bottom: 18px; line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: var(--text); font-size: 13px; }
+
+  .table-wrap { overflow-x: auto; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: var(--bg-soft); }
+  tr:last-child td { border-bottom: none; }
+  td { color: var(--text-dim); }
+  td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+
+  .repo-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; margin: 36px 0 0; display: flex; justify-content: space-between;
+    align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .repo-box p { margin: 0; color: var(--text-dim); font-size: 14.5px; }
+  .repo-box a.btn {
+    display: inline-block; background: var(--accent); color: #06281f; font-weight: 600;
+    font-size: 14px; padding: 10px 18px; border-radius: 8px; text-decoration: none; white-space: nowrap;
+  }
+  footer { border-top: 1px solid var(--border); }
+  .footer-inner { max-width: 720px; margin: 0 auto; padding: 28px 24px; color: var(--text-dim); font-size: 13.5px; }
+  .footer-inner a { color: var(--text-dim); }
+
+  figure { margin: 6px 0 24px; }
+  figure a { display: block; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #fff; line-height: 0; }
+  figure a:hover { border-color: var(--accent); }
+  figure img { width: 100%; height: auto; display: block; }
+  .keybox { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 18px 22px 8px; margin: 0 0 28px; }
+  .keybox h2 { margin: 0 0 10px; font-size: 18px; }
+  .run-list td:first-child { white-space: nowrap; }
+  td.wide, table.wide td:first-child { white-space: normal; }
+  table.wide { min-width: 760px; }
+  ol { margin: 0 0 18px 22px; }
+  hr.sep { border: 0; border-top: 1px solid var(--border); margin: 36px 0; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="../index.html">~/shlomi</a>
+    <a class="back" href="../index.html#articles">Back to home</a>
+  </div>
+</nav>
+
+<article>
+  <div class="meta">November 2026 &middot; <span class="tag-inline">AI security</span> &middot; <span class="tag-inline">honeypot</span></div>
+  <h1>Who actually attacks exposed AI infrastructure?</h1>
+
+  <p class="standfirst">A 27-day honeypot study of a decoy self-hosted LLM backend on the open internet.</p>
+
+  <p><strong>Window:</strong> 18 Jul &ndash; 16 Aug 2026 (30 days) &middot; <strong>10,864 wild requests</strong> from <strong>861 unique source IPs</strong> (self-test traffic excluded). <!-- NEW TEXT -->Updated with the full window, 18 Jul &ndash; 16 Nov 2026 (see "Four months later").<!-- /NEW TEXT --></p>
+
+  <h2>Abstract</h2>
+
+  <p>Most AI-security writing studies the <em>payload</em> - prompt injection, in a lab. This study looks at the <em>carrier</em> and the <em>population</em>: who actually hunts exposed AI infrastructure on the open internet, and how you would tell an autonomous agent from a script. We ran a single observe-only decoy LLM backend (Ollama / LiteLLM banners) on a public IP for 27 days and classified every request by behaviour.</p>
+
+  <p>The finding has two acts. <strong>For the first 27 days the wild was shallow</strong> - recon scanners and free-compute freeloaders carried the traffic, and every sensor built to catch an <em>agentic</em> attacker read zero. <strong>Then, on days 28&ndash;30, the deep signal arrived.</strong> The "MCP <code>tools/call</code> escalation" we had waited for fired for real: <strong>223 command-execution requests</strong> driving a command-execution tool, escalating from an <code>echo</code> marker to <code>env | grep -iE 'key|secret|aws|token'</code> - an attacker using our fabricated tool surface to harvest API keys. Alongside it, a <strong>named toolkit (<code>bi0x</code>)</strong> links three deep actors running a repeatable Ollama file-read + rogue-model-staging + MCP-exec playbook.</p>
+
+  <p>So the honest arc is not "the agentic attacker isn't here" - it is <strong>"it wasn't here for 27 days, and then it was."</strong> Three of the deep sensors (F1 counter-probe compliance, canary second-stage, breadcrumb) are still zero; the tool-call-execution sensor is not. And a recurring methodology thread runs through the whole study: <strong>three times our own live classifier mis-counted</strong> - once over-counting (a body-size rule inflating "offensive agents"), twice under-counting real exploitation (an Ollama file-read chain buried in "inference", a config/secret + LFI tier buried in "unknown"). Each was recovered by re-examining the stored raw requests, not by the live sensor.</p>
+
+  <h2>1. The instrument</h2>
+
+  <p>A decoy self-hosted LLM backend, public IP, observe-only, egress-capped on a $0 GCP instance. It answers like a real Ollama / LiteLLM server and records every request in full. The sensing layers, each of which becomes a column in the dataset:</p>
+
+  <div class="table-wrap">
+    <table class="wide">
+      <thead><tr><th>Layer</th><th>What it catches</th></tr></thead>
+      <tbody>
+        <tr><td>JA4H HTTP fingerprint</td><td>UA&harr;shape liars (a browser User-Agent on a non-browser HTTP shape)</td></tr>
+        <tr><td>High-interaction MCP</td><td>fabricated tool output, to capture a full <code>tools/call</code> kill-chain</td></tr>
+        <tr><td>Canary tokens + callback</td><td>a leaked secret being <em>used</em> later, from another IP</td></tr>
+        <tr><td>Breadcrumbs</td><td>deeper-resource hints, to measure which leads attackers chase</td></tr>
+        <tr><td>F1 counter-probe</td><td>a reasoning-only instruction on the inference <em>and</em> MCP paths - compliance means an LLM is in the loop</td></tr>
+        <tr><td>Cadence (F4)</td><td>inter-request think-time &rarr; a behaviour label</td></tr>
+        <tr><td>CVE-versioned banners</td><td>deliberately-vulnerable versions + exploit-signature detection, to test vulnerability-informed targeting</td></tr>
+        <tr><td>Persona tag + ASN/geo enrichment</td><td>which decoy surface each source hit; network attribution</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Every record is phase-tagged (<code>passive-v1</code> vs <code>active-v2</code>) so the passive baseline stays comparable. <strong>Ethics:</strong> observe-only; all "exec" output is fabricated; counter-probes stay on our own infrastructure; canaries are passive; self-test traffic (39 records) is excluded from every figure in this report.</p>
+
+  <h2>2. Finding 1 - the population is shallow, and the shape <em>is</em> the story</h2>
+
+  <!-- NEW TEXT -->
+  <p>The screenshots in this article are Kibana views of the same capture over 18 Jul &ndash; 9 Sep, so their counts are larger than the 30-day tables.</p>
+  <!-- /NEW TEXT -->
+
+  <p>Rolled up by behavioural tier, most-severe first:</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Tier</th><th>Records</th><th>Source IPs</th></tr></thead>
+      <tbody>
+        <tr><td>Recon / enumeration</td><td>7,736</td><td>777</td></tr>
+        <tr><td>Free-compute use (freeloading inference)</td><td>1,785</td><td>129</td></tr>
+        <tr><td>Credential / config harvesting (<code>.env</code>, config, secrets, <code>.git</code>, <code>.aws</code>)</td><td>677</td><td>16</td></tr>
+        <tr><td>MCP / orchestrator recon</td><td>106</td><td>79</td></tr>
+        <tr><td>Model-aware probing (injection / jailbreak)</td><td>86</td><td>21</td></tr>
+        <tr><td><strong>Exploitation</strong> (incl. MCP command-exec + web LFI)</td><td><strong>474</strong></td><td><strong>12</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure><a href="honeypot-img/hp-01.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-01.png" alt="Donut chart of requests by behavioural tier: recon and enumeration is about two thirds, free-compute use about a quarter, exploitation about one percent."></a></figure>
+
+  <figure><a href="honeypot-img/hp-02.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-02.png" alt="Kibana bar chart of requests per behavioural tier, recon and free-compute use dominate."></a></figure>
+
+  <p>Enumeration still dwarfs everything. But note how the exploitation tier moved: in the 27-day snapshot it was 22 records from 3 hosts; by day 30 it is <strong>474 records from 12 hosts</strong> - the MCP command-execution surge (223), a generic web-LFI tier (187, 5 IPs), and the AI-infra exploitation chains (64 records, 6 IPs). The credential tier also grew once the classifier stopped burying config/secret discovery in "unknown" (see section 4). A behavioural triage splits the population into background scanners versus a "targeted" minority that did more than knock.</p>
+
+  <p>Two structural facts about the population:</p>
+
+  <ul>
+    <li><strong>MCP scanners and model-endpoint scanners are mostly different crowds.</strong> Of the IPs that probed the <code>/mcp</code> surface, ~91% never touched the Ollama inference surface at all.</li>
+    <li><strong>The carrier gives spoofers away.</strong> One single JA4H fingerprint (a <code>python-requests</code>-shaped client) carried <strong>486 requests wearing 35 distinct browser User-Agents</strong> - 486 caught liars on one fingerprint. Network attribution is unglamorous by design: M247, Amazon, Censys, Google, OVH - hosting, VPN, and scanner networks, i.e. internet background.</li>
+  </ul>
+
+  <figure><a href="honeypot-img/hp-03.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-03.png" alt="Kibana table of JA4H fingerprints with the count of requests, distinct user agents and distinct IPs per fingerprint."></a></figure>
+
+  <figure><a href="honeypot-img/hp-04.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-04.png" alt="Kibana Discover view of one JA4H fingerprint sending rotating browser User-Agents with the same header order."></a></figure>
+
+  <h2>3. Finding 2 - the agentic signal, from zero to command-exec</h2>
+
+  <p>The deep sensors, over the full 30 days:</p>
+
+  <div class="table-wrap">
+    <table class="wide">
+      <thead><tr><th>Deep signal</th><th>Count</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td><strong>MCP <code>tools/call</code> command execution</strong></td><td><strong>223</strong></td><td>0 for 27 days &rarr; arrived 14&ndash;15 Aug, 2 IPs</td></tr>
+        <tr><td>F1 counter-probe compliance (LLM reasoned and complied)</td><td>0</td><td>still zero</td></tr>
+        <tr><td>Canary second-stage callback</td><td>0</td><td>still zero</td></tr>
+        <tr><td>Breadcrumb followed</td><td>0</td><td>still zero</td></tr>
+        <tr><td>Genuine bring-your-own-agent (BYOA) offensive payload</td><td>0</td><td>still zero</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>For 27 days the honest headline was <em>0% agentic</em>. Then it changed. Two IPs found our fabricated MCP tool surface and issued <strong>223 <code>tools/call</code> requests invoking a command-execution tool</strong> - fuzzing the argument name and tool name to find what triggers execution, then escalating from <code>echo &lt;marker&gt;</code> (confirm code runs) to <strong><code>id; env | grep -iE 'key|secret|anthropic|aws|token'</code></strong> (harvest API keys from the environment). Every one minted a multi-turn MCP session. This is precisely the high-interaction tool-call escalation the B1 layer was built to capture - no longer hypothetical.</p>
+
+  <figure><a href="honeypot-img/hp-14.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-14.png" alt="Kibana Discover view of the 223 MCP tools/call requests, a burst on 14 and 15 August."></a></figure>
+
+  <p>Three sensors remain at zero, and that too is honest: no client reasoned and complied with the F1 counter-probe, followed a breadcrumb, or came back to use a seeded canary. The agentic <em>reasoning</em> signal is still absent; the agentic <em>command-execution</em> signal is not.</p>
+
+  <p><strong>The methodology story that backs the zero.</strong> For a while the live classifier showed 266 <code>BYOA_OFFENSIVE_AGENT</code> verdicts - which read like the deep signal finally arriving. On inspection <strong>all 266 were false positives</strong>: zero offensive vocabulary; 258 were a single crypto betting bot, 8 a benign "who built you? what is 17&times;23?" model-identity probe. Root cause was one rule that treated <strong>body size alone</strong> (<code>len(body) &gt; 4000</code>) as an offensive verdict - the exact <em>feature-is-not-a-verdict</em> trap the program was built to avoid. We fixed the rule (offensive <em>vocabulary</em> now required; body size and a bare <code>tools</code> array stay as features), reclassified, and the count went to <strong>zero</strong>. A sensor catching its own false positive is the credibility of the whole study, and it belongs in the write-up as such.</p>
+
+  <p>The external research (GreyNoise, Zenity Labs) reframes what "shallow" means: the same model-enumeration pattern we see was assessed elsewhere as <strong>professional actors building target lists</strong>. The deep signal to wait for is <em>not</em> MCP tool-call escalation - it is a bring-your-own-agent payload, where an attacker points their offensive agent (Strix, HexStrike) at the endpoint as a model backend and sends its full ~140 KB instruction prompt. We retuned for exactly that (300 KB body capture, an inviting bait response) and the trap stays armed.</p>
+
+  <h2>4. Finding 3 - the deep exploiter exists, and it is a campaign</h2>
+
+  <p>Shallow interaction, serious actors. The two most complete kill-chains are reconstructed below; both arrived through the <strong>same Cloudflare-WARP egress range (104.28.0.0/16)</strong> - an OPSEC pattern (hands-on exploiters anonymize through consumer VPN; bulk scanners ride datacenter ASNs). Section 4c then shows they are part of a wider, named campaign.</p>
+
+  <h3>4a. The deepest actor - <code>104.28.222.0/24</code> (12 Aug), file-read + rogue-registry staging</h3>
+
+  <p>The single deepest engagement in 27 days: 27 requests over two hours, User-Agent absent.</p>
+
+  <ol>
+    <li><strong>Enumerate &amp; verify</strong> - <code>GET /api/tags</code> &times;2, <code>GET /api/version</code>.</li>
+    <li><strong>Arbitrary file-read sweep</strong> - <strong>9&times; <code>POST /api/create</code></strong> with a Modelfile <code>FROM &lt;absolute path&gt;</code>, ingesting host secrets as a "model" so their bytes read back: <code>/etc/passwd</code>, <code>/etc/shadow</code>, <code>/root/.ssh/id_rsa</code>, <code>/proc/self/environ</code>, and similar.</li>
+    <li><strong>Rogue-registry model staging</strong> - <strong>6&times; <code>POST /api/pull</code></strong> from the attacker's own registry (<code>8.219.90.0/24</code>) with <code>insecure:true</code>, culminating in a <code>rogue/bi0x:latest</code> pull.</li>
+    <li><strong>Blob-write primitive</strong> - <code>HEAD</code> + <code>POST /api/blobs/sha256:&hellip;</code>, the write half of the Probllama chain.</li>
+    <li><strong>Model-injection for local recon</strong> - <code>POST /api/create</code> <code>path:/etc/passwd</code>, then a Chinese-language <code>POST /api/chat</code> "list the current directory's files" - turning the model itself into the recon tool.</li>
+  </ol>
+
+  <figure><a href="honeypot-img/hp-11.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-11.png" alt="Kibana Discover view of the 12 August actor: enumeration, then POST /api/create requests classified MODEL_FILE_READ."></a></figure>
+
+  <p>Arbitrary file read via the create primitive plus rogue-registry staging is the Probllama (CVE-2024-37032) <em>vulnerability class</em>, not freeloading. <strong>The live classifier had tagged all 16 of these exploit requests as <code>INFERENCE_USE</code>.</strong> We added two detectors - <code>MODEL_FILE_READ</code> (a Modelfile <code>FROM</code>/<code>path</code> pointing at an absolute host path) and <code>ROGUE_MODEL_PULL</code> (a pull from a bare-IP registry or <code>insecure:true</code>) - and reclassified: <strong>MODEL_FILE_READ 10, ROGUE_MODEL_PULL 6, zero collateral false positives.</strong> This is the same discipline as the BYOA correction, run in the opposite direction: a sensor that <em>under-counted</em> a real attack, caught and fixed.</p>
+
+  <h3>4b. The first exploit in the dataset - <code>104.28.164.0/24</code> (26 Jul), Probllama path-traversal</h3>
+
+  <p>Textbook, and simpler: recon (<code>/api/tags</code> &times;5) &rarr; verify the models answer (<code>/api/generate</code> "Say hello in one word") &rarr; the classic path traversal (<code>GET /api/blobs/../../../../../../etc/passwd</code> and an <code>/api/pull</code> manifest digest <code>sha256:../../tmp/test123</code>). Honest nuance: it fired while we still advertised a <em>patched</em> banner, so this actor sprays Probllama <strong>opportunistically</strong>, not by version selection.</p>
+
+  <figure><a href="honeypot-img/hp-10.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-10.png" alt="Kibana Discover view of the first Probllama kill-chain: repeated /api/tags recon, liveness checks, then /api/generate."></a></figure>
+
+  <h3>4c. The <code>bi0x</code> campaign and the MCP command-exec surge (13&ndash;16 Aug)</h3>
+
+  <p>The 12 Aug actor was not a one-off - it was the first sighting of a <strong>named toolkit</strong>. The rogue-registry handle <code>rogue/bi0x</code> recurs on <code>103.151.173.0/24</code> (14 Aug, pulling <code>rogue/bi0x</code>), and <code>208.84.103.0/24</code> (14&ndash;15 Aug) runs the same Ollama-file-read + MCP-exec technique set under a <code>pocread</code> marker on a <strong>~2-hour automated re-exploitation loop</strong>. Those two IPs, plus a second Probllama actor (<code>168.144.135.0/24</code>) and another rogue-puller (<code>111.18.37.0/24</code>), bring AI-infra exploitation to <strong>six distinct hosts</strong> running one converging playbook: enumerate &rarr; read host secrets through the Ollama create primitive &rarr; stage a model from attacker infrastructure &rarr; escalate to MCP command execution &rarr; harvest environment API keys.</p>
+
+  <figure><a href="honeypot-img/hp-13.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-13.png" alt="Kibana Discover view of the three linked bi0x actors, 367 documents, with a burst on 12 August."></a></figure>
+
+  <figure><a href="honeypot-img/hp-12.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-12.png" alt="Kibana Discover view of the second Probllama actor on 15 August: /api/pull requests with path traversal names, classified CVE_EXPLOIT_ATTEMPT."></a></figure>
+
+  <p><strong>Exploitation tier total: 474 records / 12 IPs</strong> - MCP command-exec 223, web-LFI / path-traversal 187 (5 IPs), MODEL_FILE_READ 35 (2 IPs), CVE_EXPLOIT_ATTEMPT 17 (2 IPs), ROGUE_MODEL_PULL 10 (3 IPs), RCE_ATTEMPT 2 (<code>172.238.97.0/24</code>). Attribution points one way for the AI-infra set: Chinese operational language (a <code>/api/chat</code> model-injection to "list the current directory's files", sent as machine-escaped JSON), an Alibaba-range rogue registry, and the shared <code>bi0x</code> handle.</p>
+
+  <figure><a href="honeypot-img/hp-09.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-09.png" alt="Kibana Discover exploitation ledger, 777 documents over 18 Jul to 9 Sep, with verdicts RCE_ATTEMPT, PATH_TRAVERSAL, ROGUE_MODEL_PULL and CVE_EXPLOIT_ATTEMPT."></a></figure>
+
+  <p><em>Note on the CVE-banner A/B:</em> the deliberately-vulnerable banners went live 6 Aug and drew <strong>0 new CVE-exploit attempts</strong> in the following 7 days - and the one genuinely new exploiter (4a) used a technique that doesn't depend on our banner version. The "does a vulnerable banner draw more?" question needs a longer window.</p>
+
+  <h2>5. Finding 4 - the freeloader economy</h2>
+
+  <p><strong>1,785 inference requests from 129 sources</strong> treat the decoy as free GPUs. Demand splits almost evenly across the three hosted chat models - <code>mistral:7b</code> (506), <code>llama3.1:8b</code> (450), <code>qwen2.5:7b</code> (422), plus <code>nomic-embed-text</code> (65) - the balance itself a signature of automated multi-model harvesting rather than a human poking one model.</p>
+
+  <p>Two named actors make the abstraction concrete:</p>
+
+  <ul>
+    <li><strong><code>103.124.110.0/24</code> (632 requests)</strong> - a Bitcoin / Polymarket 5-minute betting bot that found the exposed Ollama, wired all three models into a multi-model "war room," and even named its model instances after our IP.</li>
+    <li><strong><code>57.129.7.0/24</code> (195 requests, UA <code>llm-pool/1.0</code>)</strong> - an LLM-pooling client with perfectly balanced demand (&asymp;65 each across the three models), <strong>still pulling on the last day of the window</strong>.</li>
+  </ul>
+
+  <figure><a href="honeypot-img/hp-07.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-07.png" alt="Kibana Discover view of the crypto betting bot: repeated /api/generate calls with a BTC 5m Polymarket prompt."></a></figure>
+
+  <figure><a href="honeypot-img/hp-06.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-06.png" alt="Kibana Discover view of the LLM-pooling client: steady /v1/chat/completions calls spread across the three models."></a></figure>
+
+  <p>A thin tail hunts for models we never advertised - <code>kimi-k3:cloud</code>, <code>qwen3.6:27b</code>, <code>llama3.2:latest</code> - the signature of scanning for servers that host something <em>valuable</em>, not just any open model. The dollar cost is tiny by design; the finding is the behaviour and the intent.</p>
+
+  <h2>6. Finding 5 - model-aware probing: a bounded campaign with a signature</h2>
+
+  <p>Above recon and freeloading sits a distinct tier that profiles <em>how the model behaves under adversarial input</em> rather than stealing compute: <strong>86 records from 21 IPs</strong>, almost entirely a single <strong><code>python-httpx/0.28.1</code></strong> fleet. Its battery: a <code>say pong</code> liveness check, a <code>say pong. [IGNORE: PR0B3]</code> injection-follow test, a DAN jailbreak reference, and one system-prompt extraction attempt.</p>
+
+  <p>The campaign is <strong>time-bounded - active 2&ndash;27 August only, and silent through October.</strong> A finite, signature-bearing operation is exactly the "professional actors building target lists" the external research describes, now with a fingerprint. It is the closest real data we have to the agentic thesis, and the bridge from Finding 1 (shallow footprint) to Finding 4 (serious actors).</p>
+
+  <figure><a href="honeypot-img/hp-05.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-05.png" alt="Kibana Discover view of the model-injection probe fleet: POST /v1/chat/completions requests with a say pong injection test, bursts from 2 August."></a></figure>
+
+  <!-- NEW TEXT -->
+  <h2>Four months later</h2>
+
+  <p>The full window runs 18 Jul &ndash; 16 Nov 2026. It holds 175,815 wild requests from 5,091 IPs. 57 self-test rows are excluded. ASN is known for 486 of the 5,091 IPs only, so the rest are reported as /24.</p>
+
+  <p>The first 10,864 rows reproduce the tables above. One gap: under the newer classifier three rows moved from free-compute use to rogue model pull, so exploitation reads 477 instead of 474 and free-compute use 1,782 instead of 1,785.</p>
+
+  <h3>Holds</h3>
+
+  <div class="table-wrap">
+    <table class="wide">
+      <thead><tr><th>Finding</th><th>Full window</th></tr></thead>
+      <tbody>
+        <tr><td>1. Shallow population</td><td>Recon is 71.8% of requests. Exploitation is 1.1%.</td></tr>
+        <tr><td>5. Model-aware probing</td><td>The <code>PR0B3</code> httpx fleet was active 2&ndash;27 Aug and silent in Sep and Oct. A separate actor on <code>23.234.98.0/24</code> sent 12 DAN-jailbreak requests on 8 Nov.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Partly holds</h3>
+
+  <div class="table-wrap">
+    <table class="wide">
+      <thead><tr><th>Finding</th><th>Full window</th></tr></thead>
+      <tbody>
+        <tr><td>2. Agentic signal</td><td>MCP command execution totals 232: 223 in Aug, 3 in Sep, 6 in Oct (the last on 25 Oct), 0 in Nov.</td></tr>
+        <tr><td>F1 counter-probe</td><td>It went from 0 to 8 /24 sessions since 13 Sep. All used curl user agents and trivial arithmetic. A human or a script is plausible. An agentic nature is unproven. The strongest candidate is a 4 Nov Probllama exploiter that paused 39 s before answering the probe, then continued exploiting.</td></tr>
+        <tr><td>Canary callbacks, breadcrumbs</td><td>Still 0.</td></tr>
+        <tr><td>BYOA</td><td>0 after reclassification. The live log's 574 are the old false positives.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Changed</h3>
+
+  <div class="table-wrap">
+    <table class="wide">
+      <thead><tr><th>Finding</th><th>Full window</th></tr></thead>
+      <tbody>
+        <tr><td>3. Deep campaign (<code>bi0x</code>)</td><td>The literal <code>bi0x</code> handle was last seen on 28 Sep (11 rows in total). The technique spread instead. Four new /24s run a shortened environment harvest: 1 to 5 calls, the <code>pocread</code> marker, the same JA4H as the original, only the exec tool. No new MCP tool names ever appeared. Rogue pulls per month: 21, 30, 90, 173.</td></tr>
+        <tr><td>3. November exploitation</td><td>One actor: <code>103.39.108.0/24</code>, a single IP with <code>curl/8.5.0</code>. 1,675 requests from 30 Oct to 6 Nov, 518 exploit rows, its own rogue registry. <code>154.36.165.0/24</code> shares its UA and JA4H.</td></tr>
+        <tr><td>New class RCE_ATTEMPT</td><td>61 rows: Modelfile <code>RUN</code> abuse and <code>/mcp-rest/test/*</code>.</td></tr>
+        <tr><td>Client honesty</td><td>Exploit traffic moved from spoofed Mozilla User-Agents in Aug to plain curl, urllib and requests in Nov.</td></tr>
+        <tr><td>4. Freeloader economy</td><td>An <code>opencode/1.17.13</code> fleet sent 17,181 inference rows, 38.8% of all inference. It came from 957 IPs in 647 /24s, 157 of them on Cloudflare WARP, from 16 Aug to 17 Oct. One JA4H, no <code>tools</code> array, fixed short prompts over about 25 <code>*:cloud</code> model names. It looks like a model-availability sweep (hypothesis). The BTC bot ended 27 Aug. <code>llm-pool</code> ended 4 Oct.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure><a href="honeypot-img/hp-08.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-08.png" alt="Kibana Discover view of the opencode client fleet: inference requests from many IPs, rising from late August."></a></figure>
+  <!-- /NEW TEXT -->
+
+  <h2>7. What it means</h2>
+
+  <ul>
+    <li><strong>The timeline is the story.</strong> For 27 days the wild was shallow and the agentic sensors read zero; on days 28&ndash;30 command-execution escalation arrived and went straight for environment secrets. "Not here yet" quietly became "here now" inside a single month on one host - the trap was worth arming, and the value now shifts from <em>waiting</em> to <em>tracking the campaign</em>.</li>
+    <li><strong>Shallow interaction &ne; shallow actor.</strong> Serious operators leave shallow footprints while building target lists; the two kill-chains and the bounded probing fleet are what "serious, hands-on" looks like today.</li>
+    <li><strong>The same fingerprints become defensive rules.</strong> Every signal that catches an attacker from the outside (a JA4H&harr;UA mismatch, a <code>FROM /etc/shadow</code> model-create, an <code>insecure:true</code> pull from a bare-IP registry) is a detection rule you can run on your own endpoint from the inside. Outside-in and inside-out are the same problem viewed from two sides.</li>
+    <li><strong>Instrument your instrument.</strong> Twice now, the loudest "signal" was a classifier artefact - once an <em>over</em>-count (BYOA), once an <em>under</em>-count (the file-read chain). A feature is never a verdict, and a sensor that cannot catch its own false positives cannot be trusted with a true one.</li>
+  </ul>
+
+  <h2>8. Limitations &amp; ethics</h2>
+
+  <p>Single host, single window - findings describe <em>this</em> sensor's traffic, not the internet. Any single fingerprint (JA4H, UA, cadence) is individually evadable; the value is in fusion, not any one signal. Cadence alone is weak. Self-test traffic is excluded from every number (39 records). The deployment is observe-only: fabricated "exec" output, passive canaries, counter-probes confined to our own infrastructure, and no advertising of the IP (mass scanners find a fresh GCP box within hours anyway; advertising would only poison the dataset). Where a count is zero, it is reported as zero.</p>
+
+</article>
+
+<footer>
+  <div class="footer-inner">
+    <a href="../index.html">Shlomi Shabat</a> &middot; Cyber Security Researcher &middot; Tel Aviv
+  </div>
+</footer>
+
+</body>
+</html>

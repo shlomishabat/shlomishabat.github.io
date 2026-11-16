@@ -195,7 +195,6 @@
       <a href="#about">About</a>
       <a href="#research">Research</a>
       <a href="#articles">Articles</a>
-      <a href="#talks">Talks</a>
       <a href="#projects">Projects</a>
     </div>
   </div>
@@ -204,7 +203,7 @@
 <header class="hero">
   <div>
     <div class="hero-kicker">// cyber security researcher</div>
-    <h1>Hi, I'm <span class="accent">Shlomi Shabat</span>.<br>I research how the web tracks people.</h1>
+    <h1>Hi, I'm <span class="accent">Shlomi Shabat</span>.<br>I research how bots, and now AI agents, pass as human.</h1>
     <p class="lede">
       Six years in security research, analysis and development. For most of them my job
       was telling bots and humans apart. Today the same question has a new actor:
@@ -221,7 +220,7 @@
       <div><span class="prompt">$</span> <span class="cmd">whoami</span></div>
       <div class="out">shlomi · cyber security researcher</div>
       <div><span class="prompt">$</span> <span class="cmd">cat focus.txt</span></div>
-      <div class="out">web tracking · fingerprinting · reverse engineering<br>autonomous agents · MCP · local SLMs</div>
+      <div class="out">bot detection · fingerprinting · reverse engineering<br>AI agents · MCP · local LLMs</div>
       <div><span class="prompt">$</span> <span class="cursor"></span></div>
     </div>
   </div>
@@ -230,8 +229,8 @@
 <section id="about" class="reveal">
   <h2 class="section-title">About</h2>
   <p class="section-sub" style="margin-bottom:0; max-width:720px;">
-    I'm a cyber security researcher based in Tel Aviv, currently at Darrow AI and
-    previously at PerimeterX (now Human Security) and K2view. The thread running through
+    I'm a Security Researcher at Chainalysis, based in Tel Aviv. Before that I worked at
+    Darrow AI, PerimeterX (now HUMAN Security) and K2view. The thread running through
     my career is distinguishing humans from machines: I spent years in bot detection,
     separating real users from automation, and my research now applies that same lens to
     the newest non-human actor, the AI agent. My work sits where research meets
@@ -239,7 +238,7 @@
     and turning one-off findings into production pipelines.
   </p>
   <div class="tags" style="margin-top:22px; max-width:720px;">
-    <span class="tag">Autonomous Agents</span><span class="tag">MCP</span><span class="tag">SLMs</span><span class="tag">JavaScript</span><span class="tag">Python</span><span class="tag">SQL</span><span class="tag">ElasticSearch</span><span class="tag">Grafana</span><span class="tag">Linux</span><span class="tag">Docker</span>
+    <span class="tag">Autonomous Agents</span><span class="tag">MCP</span><span class="tag">Local LLMs</span><span class="tag">JavaScript</span><span class="tag">Python</span><span class="tag">SQL</span><span class="tag">ElasticSearch</span><span class="tag">Kibana</span><span class="tag">Linux</span><span class="tag">Docker</span>
   </div>
 </section>
 
@@ -248,20 +247,20 @@
   <p class="section-sub">The areas I work in professionally.</p>
   <div class="research-grid">
     <div class="research-item">
-      <h3>Web Intelligence Research</h3>
-      <p>Detection logic that identifies live compliance breaches and tracking violations at web scale, taken from proof of concept to production.</p>
+      <h3>AI Agent Detection</h3>
+      <p>Finding AI agents in the browser, on the endpoint and in the wild, and being precise about what each signal can and cannot prove.</p>
     </div>
     <div class="research-item">
       <h3>Reverse Engineering</h3>
-      <p>Deep dives into complex web applications to map advanced bot detection and uncover novel evasion vectors.</p>
+      <p>Anti-bot challenges and obfuscated JavaScript, taken apart down to the VM to understand what they actually measure.</p>
     </div>
     <div class="research-item">
       <h3>Autonomous Agents &amp; Local Models</h3>
-      <p>Agent architectures, MCP tooling and on-device SLMs, including internal evaluation workflows with no external AI vendor dependencies.</p>
+      <p>How agent harnesses, MCP servers and local models behave on a real machine, and the attack surface they open.</p>
     </div>
     <div class="research-item">
       <h3>Detection Engineering</h3>
-      <p>High-throughput Python and JavaScript engines for data analytics and threat hunting across massive web data sources, backed by ElasticSearch and Grafana.</p>
+      <p>Collectors, event pipelines and detection logic for threat hunting, backed by Elasticsearch and Kibana.</p>
     </div>
   </div>
 </section>
@@ -269,90 +268,38 @@
 <section id="articles" class="reveal">
   <h2 class="section-title">Articles</h2>
   <p class="section-sub">Research write-ups and field notes.</p>
+  <a class="article-card article-link" href="articles/ai-honeypot.html">
+    <div>
+      <h3>Who actually attacks exposed AI infrastructure?</h3>
+      <p>A honeypot study of a decoy self-hosted LLM backend on the open internet, 18 Jul - 16 Nov 2026.</p>
+    </div>
+    <span class="badge">read</span>
+  </a>
+  <a class="article-card article-link" href="articles/local-llm-endpoint-sensor.html">
+    <div>
+      <h3>Local LLM + Unknown Agent Harness on macOS: What an Endpoint Sensor Can Prove</h3>
+      <p>An employee runs a local model and points an agent harness at it, possibly as root. What can an endpoint sensor prove about that setup, and what can it not.</p>
+    </div>
+    <span class="badge">read</span>
+  </a>
   <a class="article-card article-link" href="articles/botguard-interstitial.html">
     <div>
       <h3>Google's BotGuard Interstitial Challenge Breakdown</h3>
-      <p>Reverse engineering Google's bot challenge down to the VM: a JavaScript proof-of-work that turns out to be a liveness, timing and behaviour gate, not the device fingerprint you'd expect.</p>
+      <p>Reverse engineering Google's bot challenge down to the VM: a JavaScript challenge that turns out to be a liveness, timing and behaviour gate on top of a broad environment scan.</p>
     </div>
     <span class="badge">read</span>
   </a>
-  <a class="article-card article-link" href="articles/seeing-agents.html">
-    <div>
-      <h3>Seeing Agents: Fingerprinting an AI Agent from the Defender's Side</h3>
-      <p>Before asking whether an agent is malicious, you have to see it. A local lab that measures the fingerprint an LLM agent leaves in the browser, and the one signal it can't fake.</p>
-    </div>
-    <span class="badge">read</span>
-  </a>
-  <div class="article-card">
-    <div>
-      <h3>I Left a Fake AI Server on the Open Internet for Four Days</h3>
-      <p>A decoy LLM backend, 75 unique visitors, and the first signs of automated MCP scanning in the wild.</p>
-    </div>
-    <span class="badge">coming soon</span>
-  </div>
-</section>
-
-<section id="talks" class="reveal">
-  <h2 class="section-title">Talks &amp; Presentations</h2>
-  <p class="section-sub">Explainers and technical decks I've built and presented.</p>
-  <div class="grid">
-    <a class="card" href="talks/prompt-injection-ai-scanners.html">
-      <div class="card-top"><h3>How AI Scanners Get Prompt-Injected, and How to Defend Them</h3><span class="ext">↗</span></div>
-      <p>A defender's field guide to indirect prompt injection against LLM-driven agents: why semantic reasoning is the vulnerability, how the attacks work, and the controls that actually hold. From hands-on PortSwigger lab work.</p>
-      <div class="tags"><span class="tag">AI Security</span><span class="tag">Prompt Injection</span><span class="tag">Defense</span></div>
-    </a>
-    <a class="card" href="talks/localhost-tracking.html">
-      <div class="card-top"><h3>The Localhost Tracking Case: Meta &amp; Yandex</h3><span class="ext">↗</span></div>
-      <p>A walkthrough of how native apps and web pages colluded over localhost to de-anonymize users, why every consumer privacy tool missed it, and how researchers exposed it.</p>
-      <div class="tags"><span class="tag">Web Privacy</span><span class="tag">Tracking</span><span class="tag">Case Study</span></div>
-    </a>
-    <a class="card" href="talks/wireshark.html">
-      <div class="card-top"><h3>Understanding Networks &amp; Wireshark</h3><span class="ext">↗</span></div>
-      <p>A ground-up deck on networking fundamentals: the OSI model, TCP vs UDP, encapsulation, and where Wireshark sees traffic that a proxy like Burp never will.</p>
-      <div class="tags"><span class="tag">Networking</span><span class="tag">Wireshark</span><span class="tag">Fundamentals</span></div>
-    </a>
-  </div>
 </section>
 
 <section id="projects" class="reveal">
   <h2 class="section-title">Projects</h2>
-  <p class="section-sub">Tools I've built, from browser instrumentation to systems programming.</p>
+  <p class="section-sub">Research tooling I've built.</p>
   <div class="grid">
 
     <a class="card featured" href="https://github.com/shlomishabat/fpMonD" target="_blank" rel="noopener">
       <div class="card-top"><h3>fpMonD: Browser Fingerprinting Monitor</h3><span class="ext">↗</span></div>
       <p>Chrome extension that hooks canvas, WebGL, audio, navigator and font APIs before page scripts run, then parses stack traces to attribute every fingerprinting call to the script responsible, whether inline, eval or third-party, with a confidence level per attribution.</p>
       <div class="tags"><span class="tag">TypeScript</span><span class="tag">Chrome Extension</span><span class="tag">Privacy</span><span class="tag">Browser Internals</span></div>
-    </a>
-
-    <a class="card" href="https://github.com/shlomishabat/c89-assembler" target="_blank" rel="noopener">
-      <div class="card-top"><h3>C89 Assembler</h3><span class="ext">↗</span></div>
-      <p>Multi-pass assembler for a simplified assembly language, written in strict ANSI C. Macro preprocessing, symbol tables and 24-bit machine code generation.</p>
-      <div class="tags"><span class="tag">C</span><span class="tag">Systems</span><span class="tag">Compilers</span></div>
-    </a>
-
-    <a class="card" href="https://github.com/shlomishabat/tama-checker" target="_blank" rel="noopener">
-      <div class="card-top"><h3>TAMA Checker</h3><span class="ext">↗</span></div>
-      <p>Pulls building permit data from Tel Aviv's municipal GIS in Shapefile, KML and Excel formats, and alerts on new construction projects near registered addresses.</p>
-      <div class="tags"><span class="tag">Node.js</span><span class="tag">Python</span><span class="tag">GIS</span></div>
-    </a>
-
-    <a class="card" href="https://github.com/shlomishabat/arc-shortcuts" target="_blank" rel="noopener">
-      <div class="card-top"><h3>Arc Shortcuts</h3><span class="ext">↗</span></div>
-      <p>Previous-tab toggle for Chrome in the style of Arc. One keystroke jumps between your two most recent tabs, across windows, and it survives service worker restarts.</p>
-      <div class="tags"><span class="tag">JavaScript</span><span class="tag">Chrome Extension</span><span class="tag">Productivity</span></div>
-    </a>
-
-    <a class="card" href="https://github.com/shlomishabat/script-inject-ext" target="_blank" rel="noopener">
-      <div class="card-top"><h3>Script Injector</h3><span class="ext">↗</span></div>
-      <p>Chrome extension for saving and injecting custom JavaScript into any page. A lightweight workbench for DOM experiments and page analysis.</p>
-      <div class="tags"><span class="tag">JavaScript</span><span class="tag">Chrome Extension</span><span class="tag">Tooling</span></div>
-    </a>
-
-    <a class="card" href="https://github.com/shlomishabat/Openop-Gcal" target="_blank" rel="noopener">
-      <div class="card-top"><h3>Openop-Gcal</h3><span class="ext">↗</span></div>
-      <p>Chrome extension that syncs the Open University course schedule into Google Calendar.</p>
-      <div class="tags"><span class="tag">JavaScript</span><span class="tag">Chrome Extension</span><span class="tag">Automation</span></div>
     </a>
 
   </div>
