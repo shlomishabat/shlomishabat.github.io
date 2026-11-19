@@ -73,6 +73,10 @@
     letter-spacing: -0.02em; margin-bottom: 18px;
   }
   .hero h1 .accent { color: var(--accent); }
+  .hero ol.topics { padding-left: 20px; margin-bottom: 18px; max-width: 520px; }
+  .hero ol.topics li { margin-bottom: 6px; }
+  .hero ol.topics a { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--border); transition: color .18s, border-color .18s; }
+  .hero ol.topics a:hover { color: var(--accent); border-color: var(--accent); }
   .hero p.lede { color: var(--text-dim); font-size: 17px; max-width: 480px; margin-bottom: 30px; }
   .hero-cta { display: flex; gap: 14px; flex-wrap: wrap; }
   .btn {
@@ -190,7 +194,7 @@
 
 <nav>
   <div class="nav-inner">
-    <a class="nav-logo" href="#">~/shlomi</a>
+    <a class="nav-logo" href="#">~/solomon</a>
     <div class="nav-links">
       <a href="#articles">Articles</a>
       <a href="#projects">Projects</a>
@@ -200,23 +204,23 @@
 
 <header class="hero">
   <div>
-    <div class="hero-kicker">// cyber security researcher</div>
-    <h1>Hi, I'm <span class="accent">Shlomi Shabat</span>.</h1>
-    <p class="lede">
-      Six years in security research, analysis and development. For most of them my job
-      was telling bots and humans apart. Today the same question has a new actor:
-      telling AI agents and humans apart.
-    </p>
+    <div class="hero-kicker">// security research</div>
+    <h1>Bots, AI agents, and the signals that <span class="accent">tell them apart</span>.</h1>
+    <ol class="lede topics">
+      <li><a href="articles/ai-honeypot.html">AI agents in the wild - who attacks exposed AI infrastructure</a></li>
+      <li><a href="articles/local-llm-endpoint-sensor.html">Local models and agent harnesses on the endpoint</a></li>
+      <li><a href="articles/botguard-interstitial.html">Anti-bot challenges, reverse engineered</a></li>
+    </ol>
+    <p class="lede">Ideas, questions, something to share? DM me.</p>
     <div class="hero-cta">
-      <a class="btn btn-primary" href="#articles">Read the research</a>
-      <a class="btn btn-ghost" href="https://github.com/shlomishabat" target="_blank" rel="noopener">GitHub ↗</a>
+      <a class="btn btn-primary" href="https://linkedin.com/in/shlomishabat" target="_blank" rel="noopener">LinkedIn ↗</a>
     </div>
   </div>
   <div class="terminal" aria-hidden="true">
     <div class="terminal-bar"><span></span><span></span><span></span></div>
     <div class="terminal-body">
       <div><span class="prompt">$</span> <span class="cmd">whoami</span></div>
-      <div class="out">shlomi · cyber security researcher</div>
+      <div class="out">solomon · security researcher</div>
       <div><span class="prompt">$</span> <span class="cmd">cat focus.txt</span></div>
       <div class="out">bot detection · fingerprinting · reverse engineering<br>AI agents · MCP · local LLMs</div>
       <div><span class="prompt">$</span> <span class="cursor"></span></div>
