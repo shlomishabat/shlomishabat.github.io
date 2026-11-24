@@ -172,25 +172,21 @@
 
   <figure><a href="honeypot-img/hp-10.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-10.png" alt="Kibana Discover view of all 15 requests from 104.28.164.0/24 on 26 Jul: /api/tags recon, liveness and /api/generate checks, then the /api/blobs path traversal and /api/pull attempts at 23:13."></a></figure>
 
-  <h2>4. Finding 3 - the deep exploiter exists, and it is a campaign</h2>
+  <h2>4. Reading host files and staging a rogue model</h2>
 
-  <p>Shallow interaction, serious actors. The two most complete kill-chains are reconstructed below; both arrived through the <strong>same Cloudflare-WARP egress range (104.28.0.0/16)</strong> - an OPSEC pattern (hands-on exploiters anonymize through consumer VPN; bulk scanners ride datacenter ASNs). Section 4c then shows they are part of a wider, named campaign.</p>
-
-  <h3>4a. The deepest actor - <code>104.28.222.0/24</code> (12 Aug), file-read + rogue-registry staging</h3>
-
-  <p>The single deepest engagement in 27 days: 27 requests over two hours, User-Agent absent.</p>
+  <p><code>104.28.222.0/24</code>, 12 Aug. 27 requests over two hours, no User-Agent:</p>
 
   <ol>
     <li><strong>Enumerate &amp; verify</strong> - <code>GET /api/tags</code> &times;2, <code>GET /api/version</code>.</li>
-    <li><strong>Arbitrary file-read sweep</strong> - <strong>9&times; <code>POST /api/create</code></strong> with a Modelfile <code>FROM &lt;absolute path&gt;</code>, ingesting host secrets as a "model" so their bytes read back: <code>/etc/passwd</code>, <code>/etc/shadow</code>, <code>/root/.ssh/id_rsa</code>, <code>/proc/self/environ</code>, and similar.</li>
-    <li><strong>Rogue-registry model staging</strong> - <strong>6&times; <code>POST /api/pull</code></strong> from the attacker's own registry (<code>8.219.90.0/24</code>) with <code>insecure:true</code>, culminating in a <code>rogue/bi0x:latest</code> pull.</li>
-    <li><strong>Blob-write primitive</strong> - <code>HEAD</code> + <code>POST /api/blobs/sha256:&hellip;</code>, the write half of the Probllama chain.</li>
-    <li><strong>Model-injection for local recon</strong> - <code>POST /api/create</code> <code>path:/etc/passwd</code>, then a Chinese-language <code>POST /api/chat</code> "list the current directory's files" - turning the model itself into the recon tool.</li>
+    <li><strong>Read host files</strong> - 9&times; <code>POST /api/create</code> with a Modelfile <code>FROM &lt;absolute path&gt;</code>, in 17 seconds, so each file's bytes come back as a "model": <code>/etc/passwd</code>, <code>/etc/shadow</code>, <code>/root/.ssh/id_rsa</code>, <code>/proc/self/environ</code>.</li>
+    <li><strong>Stage its own model</strong> - 6&times; <code>POST /api/pull</code> from its own registry (<code>8.219.90.0/24</code>) with <code>insecure:true</code>, ending in <code>rogue/bi0x:latest</code>.</li>
+    <li><strong>Write to the server</strong> - <code>HEAD</code> + <code>POST /api/blobs/sha256:&hellip;</code>, the write half of the Probllama chain.</li>
+    <li><strong>Use the model for recon</strong> - a Chinese-language <code>POST /api/chat</code>: "list the current directory's files".</li>
   </ol>
 
-  <figure><a href="honeypot-img/hp-11.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-11.png" alt="Kibana Discover view of the 12 August actor: enumeration, then POST /api/create requests classified MODEL_FILE_READ."></a></figure>
+  <p>It came through the same Cloudflare WARP range (<code>104.28.0.0/16</code>) as the 26 Jul actor. Hands-on exploiters hide behind a consumer VPN; bulk scanners ride datacenter networks.</p>
 
-  <p>Arbitrary file read via the create primitive plus rogue-registry staging is the Probllama (CVE-2024-37032) <em>vulnerability class</em>, not freeloading. <strong>The live classifier had tagged all 16 of these exploit requests as <code>INFERENCE_USE</code>.</strong> We added two detectors - <code>MODEL_FILE_READ</code> (a Modelfile <code>FROM</code>/<code>path</code> pointing at an absolute host path) and <code>ROGUE_MODEL_PULL</code> (a pull from a bare-IP registry or <code>insecure:true</code>) - and reclassified: <strong>MODEL_FILE_READ 10, ROGUE_MODEL_PULL 6, zero collateral false positives.</strong> This is the same discipline as the BYOA correction, run in the opposite direction: a sensor that <em>under-counted</em> a real attack, caught and fixed.</p>
+  <figure><a href="honeypot-img/hp-11.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-11.png" alt="Kibana Discover view of all 27 requests from 104.28.222.0/24 on 12 Aug: recon, nine /api/create file reads within seconds, /api/pull attempts, a blob write, then /api/chat."></a></figure>
 
   <h3>4c. The <code>bi0x</code> campaign and the MCP command-exec surge (13&ndash;16 Aug)</h3>
 
