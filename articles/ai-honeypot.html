@@ -188,17 +188,32 @@
 
   <figure><a href="honeypot-img/hp-11.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-11.png" alt="Kibana Discover view of all 27 requests from 104.28.222.0/24 on 12 Aug: recon, nine /api/create file reads within seconds, /api/pull attempts, a blob write, then /api/chat."></a></figure>
 
+  <h2>5. Command execution and stolen keys</h2>
+
+  <p>Two actors on 14&ndash;15 Aug, both against the fabricated MCP tool surface.</p>
+
+  <p><code>103.151.173.0/24</code>, 14 Aug, under an hour:</p>
+
+  <ol>
+    <li><strong>Pull <code>rogue/bi0x</code></strong> - the same handle as on 12 Aug.</li>
+    <li><strong>Confirm execution</strong> - 215 <code>tools/call</code> requests, each running <code>echo &lt;marker&gt;</code>, cycling the tool name (<code>exec</code>, <code>run_command</code>, <code>shell</code>, &hellip;) and the argument name (<code>command</code>, <code>cmd</code>, <code>input</code>, <code>commandline</code>) to find which one executes.</li>
+  </ol>
+
+  <figure><a href="honeypot-img/hp-14.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-14.png" alt="Kibana Discover view of 103.151.173.0/24 on 14 Aug: two rogue/bi0x pulls, then tools/call requests running echo with a marker while cycling tool names and argument names."></a></figure>
+
+  <p><code>208.84.103.0/24</code>, 14&ndash;15 Aug, the same steps repeated every ~2 hours:</p>
+
+  <ol>
+    <li><strong>Read host files</strong> - <code>POST /api/create</code> named <code>pocread</code>: <code>/etc/passwd</code>, <code>/root/.env</code>, <code>/home/ubuntu/.env</code>.</li>
+    <li><strong>Harvest keys</strong> - <code>tools/call</code> with <code>id; env | grep -iE 'key|secret|anthropic|aws|token'</code>.</li>
+  </ol>
+
+  <figure><a href="honeypot-img/hp-13.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-13.png" alt="Kibana Discover view of 208.84.103.0/24 on 14-15 Aug: repeated pocread file reads of /etc/passwd and .env files, each round followed by a tools/call running id and env | grep for keys."></a></figure>
+
   <h3>4c. The <code>bi0x</code> campaign and the MCP command-exec surge (13&ndash;16 Aug)</h3>
 
-  <!-- PARKED for chain 3 -->
-  <p>For 27 days the honest headline was <em>0% agentic</em>. Then it changed. Two IPs found our fabricated MCP tool surface and issued <strong>223 <code>tools/call</code> requests invoking a command-execution tool</strong> - fuzzing the argument name and tool name to find what triggers execution, then escalating from <code>echo &lt;marker&gt;</code> (confirm code runs) to <strong><code>id; env | grep -iE 'key|secret|anthropic|aws|token'</code></strong> (harvest API keys from the environment). Every one minted a multi-turn MCP session. This is precisely the high-interaction tool-call escalation the B1 layer was built to capture - no longer hypothetical.</p>
-
-  <figure><a href="honeypot-img/hp-14.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-14.png" alt="Kibana Discover view of the 223 MCP tools/call requests, a burst on 14 and 15 August."></a></figure>
-  <!-- /PARKED -->
 
   <p>The 12 Aug actor was not a one-off - it was the first sighting of a <strong>named toolkit</strong>. The rogue-registry handle <code>rogue/bi0x</code> recurs on <code>103.151.173.0/24</code> (14 Aug, pulling <code>rogue/bi0x</code>), and <code>208.84.103.0/24</code> (14&ndash;15 Aug) runs the same Ollama-file-read + MCP-exec technique set under a <code>pocread</code> marker on a <strong>~2-hour automated re-exploitation loop</strong>. Those two IPs, plus a second Probllama actor (<code>168.144.135.0/24</code>) and another rogue-puller (<code>111.18.37.0/24</code>), bring AI-infra exploitation to <strong>six distinct hosts</strong> running one converging playbook: enumerate &rarr; read host secrets through the Ollama create primitive &rarr; stage a model from attacker infrastructure &rarr; escalate to MCP command execution &rarr; harvest environment API keys.</p>
-
-  <figure><a href="honeypot-img/hp-13.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-13.png" alt="Kibana Discover view of the three linked bi0x actors, 367 documents, with a burst on 12 August."></a></figure>
 
   <figure><a href="honeypot-img/hp-12.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-12.png" alt="Kibana Discover view of the second Probllama actor on 15 August: /api/pull requests with path traversal names, classified CVE_EXPLOIT_ATTEMPT."></a></figure>
 
