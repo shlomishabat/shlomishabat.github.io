@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Who actually attacks exposed AI infrastructure? | Shlomi Shabat</title>
-<meta name="description" content="A honeypot study of a decoy self-hosted LLM backend on the open internet: who hunts exposed AI infrastructure, how an autonomous agent differs from a script, and what changed over four months.">
+<title>What attackers actually do to an exposed Ollama server | Shlomi Shabat</title>
+<meta name="description" content="A honeypot study of a decoy self-hosted LLM backend on the open internet, running since 18 Jul 2026 and still collecting.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0e14'/><path d='M25 32 L45 50 L25 68' stroke='%234fd1c5' stroke-width='9' fill='none' stroke-linecap='round' stroke-linejoin='round'/><rect x='52' y='61' width='26' height='9' rx='4' fill='%234fd1c5'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -116,23 +116,17 @@
 
 <article>
   <div class="meta">November 2026 &middot; <span class="tag-inline">AI security</span> &middot; <span class="tag-inline">honeypot</span></div>
-  <h1>Who actually attacks exposed AI infrastructure?</h1>
+  <h1>What attackers actually do to an exposed Ollama server</h1>
 
   <p class="standfirst">A honeypot study of a decoy self-hosted LLM backend on the open internet, running since 18 Jul 2026 and still collecting.</p>
 
-  <p><strong>Window:</strong> 18 Jul &ndash; 16 Aug 2026 (the first 30 days) &middot; <strong>10,864 wild requests</strong> from <strong>861 unique source IPs</strong> (self-test traffic excluded). <!-- NEW TEXT -->The sensor is still running; "Four months later" covers the data up to 16 Nov 2026.<!-- /NEW TEXT --></p>
-
   <h2>Abstract</h2>
 
-  <p>Most AI-security writing studies the <em>payload</em> - prompt injection, in a lab. This study looks at the <em>carrier</em> and the <em>population</em>: who actually hunts exposed AI infrastructure on the open internet, and how you would tell an autonomous agent from a script. We ran a single observe-only decoy LLM backend (Ollama / LiteLLM banners) on a public IP for 27 days and classified every request by behaviour.</p>
-
-  <p>The finding has two acts. <strong>For the first 27 days the wild was shallow</strong> - recon scanners and free-compute freeloaders carried the traffic, and every sensor built to catch an <em>agentic</em> attacker read zero. <strong>Then, on days 28&ndash;30, the deep signal arrived.</strong> The "MCP <code>tools/call</code> escalation" we had waited for fired for real: <strong>223 command-execution requests</strong> driving a command-execution tool, escalating from an <code>echo</code> marker to <code>env | grep -iE 'key|secret|aws|token'</code> - an attacker using our fabricated tool surface to harvest API keys. Alongside it, a <strong>named toolkit (<code>bi0x</code>)</strong> links three deep actors running a repeatable Ollama file-read + rogue-model-staging + MCP-exec playbook.</p>
-
-  <p>So the honest arc is not "the agentic attacker isn't here" - it is <strong>"it wasn't here for 27 days, and then it was."</strong> Three of the deep sensors (F1 counter-probe compliance, canary second-stage, breadcrumb) are still zero; the tool-call-execution sensor is not. And a recurring methodology thread runs through the whole study: <strong>three times our own live classifier mis-counted</strong> - once over-counting (a body-size rule inflating "offensive agents"), twice under-counting real exploitation (an Ollama file-read chain buried in "inference", a config/secret + LFI tier buried in "unknown"). Each was recovered by re-examining the stored raw requests, not by the live sensor.</p>
+  <p>I put a fake Ollama server on the open internet and recorded every request. This is what attackers did with it: scan, read host files, stage their own model, and run commands to steal API keys.</p>
 
   <h2>1. The instrument</h2>
 
-  <p>A decoy self-hosted LLM backend, public IP, observe-only, egress-capped on a $0 GCP instance. It answers like a real Ollama / LiteLLM server and records every request in full. The sensing layers, each of which becomes a column in the dataset:</p>
+  <p>A decoy self-hosted LLM backend, public IP, observe-only, egress-capped on a $0 GCP instance. It answers like a real Ollama / LiteLLM server and records every request in full. The sensing layers that matter below:</p>
 
   <div class="table-wrap">
     <table class="wide">
@@ -140,23 +134,13 @@
       <tbody>
         <tr><td>JA4H HTTP fingerprint</td><td>UA&harr;shape liars (a browser User-Agent on a non-browser HTTP shape)</td></tr>
         <tr><td>High-interaction MCP</td><td>fabricated tool output, to capture a full <code>tools/call</code> kill-chain</td></tr>
-        <tr><td>Canary tokens + callback</td><td>a leaked secret being <em>used</em> later, from another IP</td></tr>
-        <tr><td>Breadcrumbs</td><td>deeper-resource hints, to measure which leads attackers chase</td></tr>
-        <tr><td>F1 counter-probe</td><td>a reasoning-only instruction on the inference <em>and</em> MCP paths - compliance means an LLM is in the loop</td></tr>
-        <tr><td>Cadence (F4)</td><td>inter-request think-time &rarr; a behaviour label</td></tr>
-        <tr><td>CVE-versioned banners</td><td>deliberately-vulnerable versions + exploit-signature detection, to test vulnerability-informed targeting</td></tr>
-        <tr><td>Persona tag + ASN/geo enrichment</td><td>which decoy surface each source hit; network attribution</td></tr>
       </tbody>
     </table>
   </div>
 
-  <p>Every record is phase-tagged (<code>passive-v1</code> vs <code>active-v2</code>) so the passive baseline stays comparable. <strong>Ethics:</strong> observe-only; all "exec" output is fabricated; counter-probes stay on our own infrastructure; canaries are passive; self-test traffic (39 records) is excluded from every figure in this report.</p>
+  <p><strong>Ethics:</strong> observe-only; all "exec" output is fabricated; self-test traffic is excluded from every figure.</p>
 
-  <h2>2. Finding 1 - the population is shallow, and the shape <em>is</em> the story</h2>
-
-  <!-- NEW TEXT -->
-  <p>The screenshots in this article are Kibana views of the same capture over 18 Jul &ndash; 9 Sep, so their counts are larger than the 30-day tables.</p>
-  <!-- /NEW TEXT -->
+  <h2>2. Who knocks</h2>
 
   <p>Rolled up by behavioural tier, most-severe first:</p>
 
@@ -164,32 +148,17 @@
     <table>
       <thead><tr><th>Tier</th><th>Records</th><th>Source IPs</th></tr></thead>
       <tbody>
-        <tr><td>Recon / enumeration</td><td>7,736</td><td>777</td></tr>
-        <tr><td>Free-compute use (freeloading inference)</td><td>1,785</td><td>129</td></tr>
-        <tr><td>Credential / config harvesting (<code>.env</code>, config, secrets, <code>.git</code>, <code>.aws</code>)</td><td>677</td><td>16</td></tr>
-        <tr><td>MCP / orchestrator recon</td><td>106</td><td>79</td></tr>
-        <tr><td>Model-aware probing (injection / jailbreak)</td><td>86</td><td>21</td></tr>
-        <tr><td><strong>Exploitation</strong> (incl. MCP command-exec + web LFI)</td><td><strong>474</strong></td><td><strong>12</strong></td></tr>
+        <tr><td>Recon / enumeration</td><td>126,230</td><td>3,724</td></tr>
+        <tr><td>Free-compute use</td><td>44,291</td><td>1,731</td></tr>
+        <tr><td>Credential / config harvesting</td><td>2,657</td><td>207</td></tr>
+        <tr><td><strong>Exploitation</strong></td><td><strong>1,852</strong></td><td><strong>132</strong></td></tr>
       </tbody>
     </table>
   </div>
 
-  <figure><a href="honeypot-img/hp-01.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-01.png" alt="Donut chart of requests by behavioural tier: recon and enumeration is about two thirds, free-compute use about a quarter, exploitation about one percent."></a></figure>
+  <figure><a href="honeypot-img/hp-tiers.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-tiers.png" alt="Kibana bar chart of requests by verdict over the full window. Recon, inference and liveness checks dominate; the exploitation verdicts are thin bars at the bottom."></a></figure>
 
-  <figure><a href="honeypot-img/hp-02.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-02.png" alt="Kibana bar chart of requests per behavioural tier, recon and free-compute use dominate."></a></figure>
-
-  <p>Enumeration still dwarfs everything. But note how the exploitation tier moved: in the 27-day snapshot it was 22 records from 3 hosts; by day 30 it is <strong>474 records from 12 hosts</strong> - the MCP command-execution surge (223), a generic web-LFI tier (187, 5 IPs), and the AI-infra exploitation chains (64 records, 6 IPs). The credential tier also grew once the classifier stopped burying config/secret discovery in "unknown" (see section 4). A behavioural triage splits the population into background scanners versus a "targeted" minority that did more than knock.</p>
-
-  <p>Two structural facts about the population:</p>
-
-  <ul>
-    <li><strong>MCP scanners and model-endpoint scanners are mostly different crowds.</strong> Of the IPs that probed the <code>/mcp</code> surface, ~91% never touched the Ollama inference surface at all.</li>
-    <li><strong>The carrier gives spoofers away.</strong> One single JA4H fingerprint (a <code>python-requests</code>-shaped client) carried <strong>486 requests wearing 35 distinct browser User-Agents</strong> - 486 caught liars on one fingerprint. Network attribution is unglamorous by design: M247, Amazon, Censys, Google, OVH - hosting, VPN, and scanner networks, i.e. internet background.</li>
-  </ul>
-
-  <figure><a href="honeypot-img/hp-03.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-03.png" alt="Kibana table of JA4H fingerprints with the count of requests, distinct user agents and distinct IPs per fingerprint."></a></figure>
-
-  <figure><a href="honeypot-img/hp-04.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-04.png" alt="Kibana Discover view of one JA4H fingerprint sending rotating browser User-Agents with the same header order."></a></figure>
+  <p>Enumeration still dwarfs everything. Network attribution is unglamorous by design: M247, Amazon, Censys, Google, OVH - hosting, VPN, and scanner networks, i.e. internet background. 44,291 inference requests from 1,731 sources treat the decoy as free GPUs.</p>
 
   <h2>3. Finding 2 - the agentic signal, from zero to command-exec</h2>
 
