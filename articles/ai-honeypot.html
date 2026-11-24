@@ -160,9 +160,17 @@
 
   <h2>3. The first exploit - Probllama path traversal (CVE-2024-37032)</h2>
 
-  <p><code>104.28.164.0/24</code>, 26 Jul. Recon (<code>/api/tags</code> &times;5) &rarr; verify the models answer (<code>/api/generate</code> "Say hello in one word") &rarr; the classic path traversal (<code>GET /api/blobs/../../../../../../etc/passwd</code> and an <code>/api/pull</code> manifest digest <code>sha256:../../tmp/test123</code>). It fired while I still advertised a <em>patched</em> banner, so this actor sprays Probllama <strong>opportunistically</strong>, not by version selection.</p>
+  <p><code>104.28.164.0/24</code>, 26 Jul. 29 minutes from the first request to the exploit:</p>
 
-  <figure><a href="honeypot-img/hp-10.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-10.png" alt="Kibana Discover view of the first Probllama kill-chain: repeated /api/tags recon, liveness checks, then /api/generate."></a></figure>
+  <ol>
+    <li><strong>Recon</strong> - <code>GET /api/tags</code>, five times.</li>
+    <li><strong>Check the models answer</strong> - <code>POST /api/generate</code> "Say hello in one word".</li>
+    <li><strong>Exploit</strong> - <code>GET /api/blobs/../../../../../../etc/passwd</code>, and an <code>/api/pull</code> with the manifest digest <code>sha256:../../tmp/test123</code>.</li>
+  </ol>
+
+  <p>It fired while I still advertised a <em>patched</em> banner, so this actor sprays Probllama <strong>opportunistically</strong>, not by version selection.</p>
+
+  <figure><a href="honeypot-img/hp-10.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-10.png" alt="Kibana Discover view of all 15 requests from 104.28.164.0/24 on 26 Jul: /api/tags recon, liveness and /api/generate checks, then the /api/blobs path traversal and /api/pull attempts at 23:13."></a></figure>
 
   <h2>4. Finding 3 - the deep exploiter exists, and it is a campaign</h2>
 
