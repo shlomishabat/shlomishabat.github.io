@@ -126,7 +126,7 @@
 
   <h2>1. The instrument</h2>
 
-  <p>A decoy self-hosted LLM backend, public IP, observe-only, egress-capped. It answers like a real Ollama / LiteLLM server and records every request in full. The sensing layers that matter below:</p>
+  <p>A decoy self-hosted LLM backend, public IP, observe-only, egress-capped. It answers like a real Ollama / LiteLLM server, fakes every command output, and records every request in full. The sensing layers that matter below:</p>
 
   <div class="table-wrap">
     <table class="wide">
@@ -137,8 +137,6 @@
       </tbody>
     </table>
   </div>
-
-  <p><strong>Ethics:</strong> observe-only; all "exec" output is fabricated; self-test traffic is excluded from every figure.</p>
 
   <h2>2. Who knocks</h2>
 
@@ -160,32 +158,11 @@
 
   <p>Enumeration still dwarfs everything. Network attribution is unglamorous by design: M247, Amazon, Censys, Google, OVH - hosting, VPN, and scanner networks, i.e. internet background. 44,291 inference requests from 1,731 sources treat the decoy as free GPUs.</p>
 
-  <h2>3. Finding 2 - the agentic signal, from zero to command-exec</h2>
+  <h2>3. The first exploit - Probllama path traversal (CVE-2024-37032)</h2>
 
-  <p>The deep sensors, over the full 30 days:</p>
+  <p><code>104.28.164.0/24</code>, 26 Jul. Recon (<code>/api/tags</code> &times;5) &rarr; verify the models answer (<code>/api/generate</code> "Say hello in one word") &rarr; the classic path traversal (<code>GET /api/blobs/../../../../../../etc/passwd</code> and an <code>/api/pull</code> manifest digest <code>sha256:../../tmp/test123</code>). It fired while I still advertised a <em>patched</em> banner, so this actor sprays Probllama <strong>opportunistically</strong>, not by version selection.</p>
 
-  <div class="table-wrap">
-    <table class="wide">
-      <thead><tr><th>Deep signal</th><th>Count</th><th>Note</th></tr></thead>
-      <tbody>
-        <tr><td><strong>MCP <code>tools/call</code> command execution</strong></td><td><strong>223</strong></td><td>0 for 27 days &rarr; arrived 14&ndash;15 Aug, 2 IPs</td></tr>
-        <tr><td>F1 counter-probe compliance (LLM reasoned and complied)</td><td>0</td><td>still zero</td></tr>
-        <tr><td>Canary second-stage callback</td><td>0</td><td>still zero</td></tr>
-        <tr><td>Breadcrumb followed</td><td>0</td><td>still zero</td></tr>
-        <tr><td>Genuine bring-your-own-agent (BYOA) offensive payload</td><td>0</td><td>still zero</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <p>For 27 days the honest headline was <em>0% agentic</em>. Then it changed. Two IPs found our fabricated MCP tool surface and issued <strong>223 <code>tools/call</code> requests invoking a command-execution tool</strong> - fuzzing the argument name and tool name to find what triggers execution, then escalating from <code>echo &lt;marker&gt;</code> (confirm code runs) to <strong><code>id; env | grep -iE 'key|secret|anthropic|aws|token'</code></strong> (harvest API keys from the environment). Every one minted a multi-turn MCP session. This is precisely the high-interaction tool-call escalation the B1 layer was built to capture - no longer hypothetical.</p>
-
-  <figure><a href="honeypot-img/hp-14.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-14.png" alt="Kibana Discover view of the 223 MCP tools/call requests, a burst on 14 and 15 August."></a></figure>
-
-  <p>Three sensors remain at zero, and that too is honest: no client reasoned and complied with the F1 counter-probe, followed a breadcrumb, or came back to use a seeded canary. The agentic <em>reasoning</em> signal is still absent; the agentic <em>command-execution</em> signal is not.</p>
-
-  <p><strong>The methodology story that backs the zero.</strong> For a while the live classifier showed 266 <code>BYOA_OFFENSIVE_AGENT</code> verdicts - which read like the deep signal finally arriving. On inspection <strong>all 266 were false positives</strong>: zero offensive vocabulary; 258 were a single crypto betting bot, 8 a benign "who built you? what is 17&times;23?" model-identity probe. Root cause was one rule that treated <strong>body size alone</strong> (<code>len(body) &gt; 4000</code>) as an offensive verdict - the exact <em>feature-is-not-a-verdict</em> trap the program was built to avoid. We fixed the rule (offensive <em>vocabulary</em> now required; body size and a bare <code>tools</code> array stay as features), reclassified, and the count went to <strong>zero</strong>. A sensor catching its own false positive is the credibility of the whole study, and it belongs in the write-up as such.</p>
-
-  <p>The external research (GreyNoise, Zenity Labs) reframes what "shallow" means: the same model-enumeration pattern we see was assessed elsewhere as <strong>professional actors building target lists</strong>. The deep signal to wait for is <em>not</em> MCP tool-call escalation - it is a bring-your-own-agent payload, where an attacker points their offensive agent (Strix, HexStrike) at the endpoint as a model backend and sends its full ~140 KB instruction prompt. We retuned for exactly that (300 KB body capture, an inviting bait response) and the trap stays armed.</p>
+  <figure><a href="honeypot-img/hp-10.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-10.png" alt="Kibana Discover view of the first Probllama kill-chain: repeated /api/tags recon, liveness checks, then /api/generate."></a></figure>
 
   <h2>4. Finding 3 - the deep exploiter exists, and it is a campaign</h2>
 
@@ -207,13 +184,13 @@
 
   <p>Arbitrary file read via the create primitive plus rogue-registry staging is the Probllama (CVE-2024-37032) <em>vulnerability class</em>, not freeloading. <strong>The live classifier had tagged all 16 of these exploit requests as <code>INFERENCE_USE</code>.</strong> We added two detectors - <code>MODEL_FILE_READ</code> (a Modelfile <code>FROM</code>/<code>path</code> pointing at an absolute host path) and <code>ROGUE_MODEL_PULL</code> (a pull from a bare-IP registry or <code>insecure:true</code>) - and reclassified: <strong>MODEL_FILE_READ 10, ROGUE_MODEL_PULL 6, zero collateral false positives.</strong> This is the same discipline as the BYOA correction, run in the opposite direction: a sensor that <em>under-counted</em> a real attack, caught and fixed.</p>
 
-  <h3>4b. The first exploit in the dataset - <code>104.28.164.0/24</code> (26 Jul), Probllama path-traversal</h3>
-
-  <p>Textbook, and simpler: recon (<code>/api/tags</code> &times;5) &rarr; verify the models answer (<code>/api/generate</code> "Say hello in one word") &rarr; the classic path traversal (<code>GET /api/blobs/../../../../../../etc/passwd</code> and an <code>/api/pull</code> manifest digest <code>sha256:../../tmp/test123</code>). Honest nuance: it fired while we still advertised a <em>patched</em> banner, so this actor sprays Probllama <strong>opportunistically</strong>, not by version selection.</p>
-
-  <figure><a href="honeypot-img/hp-10.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-10.png" alt="Kibana Discover view of the first Probllama kill-chain: repeated /api/tags recon, liveness checks, then /api/generate."></a></figure>
-
   <h3>4c. The <code>bi0x</code> campaign and the MCP command-exec surge (13&ndash;16 Aug)</h3>
+
+  <!-- PARKED for chain 3 -->
+  <p>For 27 days the honest headline was <em>0% agentic</em>. Then it changed. Two IPs found our fabricated MCP tool surface and issued <strong>223 <code>tools/call</code> requests invoking a command-execution tool</strong> - fuzzing the argument name and tool name to find what triggers execution, then escalating from <code>echo &lt;marker&gt;</code> (confirm code runs) to <strong><code>id; env | grep -iE 'key|secret|anthropic|aws|token'</code></strong> (harvest API keys from the environment). Every one minted a multi-turn MCP session. This is precisely the high-interaction tool-call escalation the B1 layer was built to capture - no longer hypothetical.</p>
+
+  <figure><a href="honeypot-img/hp-14.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-14.png" alt="Kibana Discover view of the 223 MCP tools/call requests, a burst on 14 and 15 August."></a></figure>
+  <!-- /PARKED -->
 
   <p>The 12 Aug actor was not a one-off - it was the first sighting of a <strong>named toolkit</strong>. The rogue-registry handle <code>rogue/bi0x</code> recurs on <code>103.151.173.0/24</code> (14 Aug, pulling <code>rogue/bi0x</code>), and <code>208.84.103.0/24</code> (14&ndash;15 Aug) runs the same Ollama-file-read + MCP-exec technique set under a <code>pocread</code> marker on a <strong>~2-hour automated re-exploitation loop</strong>. Those two IPs, plus a second Probllama actor (<code>168.144.135.0/24</code>) and another rogue-puller (<code>111.18.37.0/24</code>), bring AI-infra exploitation to <strong>six distinct hosts</strong> running one converging playbook: enumerate &rarr; read host secrets through the Ollama create primitive &rarr; stage a model from attacker infrastructure &rarr; escalate to MCP command execution &rarr; harvest environment API keys.</p>
 
