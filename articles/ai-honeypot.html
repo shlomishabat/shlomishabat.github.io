@@ -122,7 +122,7 @@
 
   <h2>Abstract</h2>
 
-  <p>I put a fake Ollama server on the open internet and recorded every request. This is what attackers did with it: scan, read host files, stage their own model, and run commands to steal API keys.</p>
+  <p>I put a fake Ollama server on the open internet and recorded every request. This is what attackers did with it, across several actors: scan, read host files, stage their own model, and run commands to steal API keys.</p>
 
   <h2>1. The instrument</h2>
 
@@ -160,6 +160,8 @@
 
   <h2>3. The first exploit - Probllama path traversal (CVE-2024-37032)</h2>
 
+  <p>Each chain below is one source IP in one continuous window.</p>
+
   <p><code>104.28.164.0/24</code>, 26 Jul. 29 minutes from the first request to the exploit:</p>
 
   <ol>
@@ -184,8 +186,6 @@
     <li><strong>Use the model for recon</strong> - a Chinese-language <code>POST /api/chat</code>: "list the current directory's files".</li>
   </ol>
 
-  <p>It came through the same Cloudflare WARP range (<code>104.28.0.0/16</code>) as the 26 Jul actor. Hands-on exploiters hide behind a consumer VPN; bulk scanners ride datacenter networks.</p>
-
   <figure><a href="honeypot-img/hp-11.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-11.png" alt="Kibana Discover view of all 27 requests from 104.28.222.0/24 on 12 Aug: recon, nine /api/create file reads within seconds, /api/pull attempts, a blob write, then /api/chat."></a></figure>
 
   <h2>5. Command execution and stolen keys</h2>
@@ -195,13 +195,13 @@
   <p><code>103.151.173.0/24</code>, 14 Aug, under an hour:</p>
 
   <ol>
-    <li><strong>Pull <code>rogue/bi0x</code></strong> - the same handle as on 12 Aug.</li>
+    <li><strong>Pull <code>rogue/bi0x</code></strong> - the same model name as on 12 Aug.</li>
     <li><strong>Confirm execution</strong> - 215 <code>tools/call</code> requests, each running <code>echo &lt;marker&gt;</code>, cycling the tool name (<code>exec</code>, <code>run_command</code>, <code>shell</code>, &hellip;) and the argument name (<code>command</code>, <code>cmd</code>, <code>input</code>, <code>commandline</code>) to find which one executes.</li>
   </ol>
 
   <figure><a href="honeypot-img/hp-14.png" target="_blank" rel="noopener"><img src="honeypot-img/hp-14.png" alt="Kibana Discover view of 103.151.173.0/24 on 14 Aug: two rogue/bi0x pulls, then tools/call requests running echo with a marker while cycling tool names and argument names."></a></figure>
 
-  <p><code>208.84.103.0/24</code>, 14&ndash;15 Aug, the same steps repeated every ~2 hours:</p>
+  <p><code>208.84.103.0/24</code>, 14&ndash;15 Aug, the same two steps, eight rounds overnight:</p>
 
   <ol>
     <li><strong>Read host files</strong> - <code>POST /api/create</code> named <code>pocread</code>: <code>/etc/passwd</code>, <code>/root/.env</code>, <code>/home/ubuntu/.env</code>.</li>
